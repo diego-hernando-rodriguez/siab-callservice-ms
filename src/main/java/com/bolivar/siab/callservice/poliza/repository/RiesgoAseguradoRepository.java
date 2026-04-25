@@ -11,13 +11,48 @@ import java.util.List;
 public interface RiesgoAseguradoRepository extends JpaRepository<RiesgoAseguradoEntity, RiesgoAseguradoEntity.RiesgoAseguradoId> {
 
     /**
-     * SQL-01: Search by VALOR_SIN_CEROS (LTRIM logic), excluding CODIGO_CAMPO IN (48, 4, 81).
+     * Search by VALOR using LTRIM logic (removes leading zeros), excluding non-identifying fields.
+     * Returns raw rows to avoid Hibernate entity mapping issues with composite PK.
      */
-    @Query(value = "SELECT * FROM NASIST.RIESGOS_ASEGURADOS WHERE LTRIM(VALOR, '0') = LTRIM(:valor, '0') " +
-                   "AND CODIGO_CAMPO NOT IN (48, 4, 81)", nativeQuery = true)
-    List<RiesgoAseguradoEntity> findByValorSinCeros(@Param("valor") String valor);
+    @Query(value =
+        "SELECT DISTINCT ra.riesgo_codigo, ra.valor, ra.codigo_campo, " +
+        "ra.ramo_codigo, ra.producto_codigo, ra.cont_numero_contrato, " +
+        "ra.cont_fecha_inicio_vigencia, ra.peco_numero_orden, ra.cont_tipo_contrato, ra.valor_sin_ceros " +
+        "FROM NASIST.RIESGOS_ASEGURADOS ra " +
+        "WHERE LTRIM(ra.VALOR, '0') = LTRIM(:valor, '0') " +
+        "AND ra.CODIGO_CAMPO NOT IN (48, 4, 81) " +
+        "AND ra.CONT_NUMERO_CONTRATO NOT LIKE '%ASIS%' " +
+        "AND ROWNUM <= 50 " +
+        "ORDER BY ra.CONT_FECHA_INICIO_VIGENCIA DESC",
+        nativeQuery = true)
+    List<Object[]> findByValorSinCeros(@Param("valor") String valor);
 
-    List<RiesgoAseguradoEntity> findByContNumero(String contNumero);
+    List<RiesgoAseguradoEntity> findByContNumeroContrato(String contNumeroContrato);
 
-    List<RiesgoAseguradoEntity> findByContNumeroAndRiesgoCodigo(String contNumero, String riesgoCodigo);
+    List<RiesgoAseguradoEntity> findByContNumeroContratoAndRiesgoCodigo(String contNumeroContrato, String riesgoCodigo);
+
+    /**
+     * RIESGO_CODIGO_CAMP_LOV12: Searchable fields for a ramo/producto.
+     * Returns codigo_campo, nombre_campo, riesgo_codigo where argumento_busqueda = 'S'.
+     */
+    @Query(nativeQuery = true, value =
+        "SELECT DISTINCT td.codigo_campo, td.nombre_campo, dr.riesgo_codigo " +
+        "FROM tipos_dato_riesgo td, datos_riesgo dr " +
+        "WHERE td.ramo_codigo = :ramo AND td.producto_codigo = :producto " +
+        "AND dr.ramo_codigo = td.ramo_codigo AND dr.producto_codigo = td.producto_codigo " +
+        "AND td.codigo_campo = dr.codigo_campo AND td.argumento_busqueda = 'S'")
+    List<Object[]> findCamposBusqueda(@Param("ramo") String ramo, @Param("producto") String producto);
+
+    /**
+     * RG_RIESGO / LOV_RIESGOS: All searchable field types from TIPOS_DATO_ASEGURADO.
+     * This is the global list shown when ramo/producto are not yet known.
+     */
+    @Query(nativeQuery = true, value =
+        "SELECT DISTINCT td.codigo_campo, td.nombre_campo " +
+        "FROM tipos_dato_asegurado td " +
+        "WHERE EXISTS (SELECT 1 FROM tipos_dato_riesgo t1 " +
+        "              WHERE t1.argumento_busqueda = 'S' " +
+        "                AND t1.codigo_campo = td.codigo_campo) " +
+        "ORDER BY td.codigo_campo")
+    List<Object[]> findAllCamposBusqueda();
 }

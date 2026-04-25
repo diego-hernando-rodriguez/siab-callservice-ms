@@ -2,6 +2,7 @@ package com.bolivar.siab.callservice.poliza.controller;
 
 import com.bolivar.siab.callservice.commons.dto.ApiResponse;
 import com.bolivar.siab.callservice.poliza.dto.*;
+import com.bolivar.siab.callservice.poliza.repository.RiesgoAseguradoRepository;
 import com.bolivar.siab.callservice.poliza.services.PolizaService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 public class PolizaController {
 
     private final PolizaService polizaService;
+    private final RiesgoAseguradoRepository riesgoRepository;
 
     @GetMapping("/riesgos/buscar")
     @Operation(summary = "Search risks by value (LTRIM logic)")
@@ -43,6 +45,26 @@ public class PolizaController {
     @Operation(summary = "LOV: Risk search (LLAMADA_RIESGO_CODI_LOV8)")
     public ResponseEntity<ApiResponse<RiesgoBusquedaResponseDTO>> lovRiesgos(@RequestParam String valor) {
         return ResponseEntity.ok(ApiResponse.ok(polizaService.searchRisks(valor)));
+    }
+
+    @GetMapping("/riesgos/campos-busqueda")
+    @Operation(summary = "LOV: Risk search fields (RG_RIESGO / LOV_RIESGOS) - all searchable field types")
+    public ResponseEntity<ApiResponse<java.util.List<java.util.Map<String, Object>>>> getCamposBusqueda(
+            @RequestParam(required = false) String ramo, @RequestParam(required = false) String producto) {
+        java.util.List<Object[]> rows;
+        if (ramo != null && producto != null) {
+            rows = riesgoRepository.findCamposBusqueda(ramo, producto);
+        } else {
+            rows = riesgoRepository.findAllCamposBusqueda();
+        }
+        java.util.List<java.util.Map<String, Object>> result = rows.stream().map(row -> {
+            java.util.Map<String, Object> map = new java.util.LinkedHashMap<>();
+            map.put("codigoCampo", row[0] != null ? Integer.parseInt(row[0].toString()) : null);
+            map.put("nombreCampo", row[1] != null ? row[1].toString() : null);
+            if (row.length > 2) { map.put("riesgoCodigo", row[2] != null ? row[2].toString() : null); }
+            return map;
+        }).collect(java.util.stream.Collectors.toList());
+        return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
     @GetMapping("/polizas/lov/productos")

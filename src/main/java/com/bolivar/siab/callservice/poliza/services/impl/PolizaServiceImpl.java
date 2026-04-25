@@ -2,7 +2,6 @@ package com.bolivar.siab.callservice.poliza.services.impl;
 
 import com.bolivar.siab.callservice.commons.repository.StoredProcedureRepository;
 import com.bolivar.siab.callservice.poliza.dto.*;
-import com.bolivar.siab.callservice.poliza.mapper.PolizaMapper;
 import com.bolivar.siab.callservice.poliza.models.*;
 import com.bolivar.siab.callservice.poliza.repository.*;
 import com.bolivar.siab.callservice.poliza.services.PolizaService;
@@ -11,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
@@ -21,21 +21,39 @@ public class PolizaServiceImpl implements PolizaService {
     private final RiesgoAseguradoRepository riesgoRepository;
     private final PersonaContratoRepository personaContratoRepository;
     private final StoredProcedureRepository storedProcedureRepository;
-    private final PolizaMapper polizaMapper;
 
     @Override
     @Transactional(readOnly = true)
     public RiesgoBusquedaResponseDTO searchRisks(String valor) {
-        // SQL-01: Search by VALOR_SIN_CEROS (LTRIM logic), excluding CODIGO_CAMPO IN (48, 4, 81)
-        List<RiesgoAseguradoEntity> riesgos = riesgoRepository.findByValorSinCeros(valor);
-        boolean encontrado = !riesgos.isEmpty();
+        log.info("Searching risks by valor: {}", valor);
+
+        // Native query returns Object[] rows to avoid Hibernate composite PK mapping issues
+        List<Object[]> rows = riesgoRepository.findByValorSinCeros(valor);
+        boolean encontrado = !rows.isEmpty();
+
+        List<RiesgoAseguradoDTO> riesgos = new ArrayList<>();
+        for (Object[] row : rows) {
+            riesgos.add(RiesgoAseguradoDTO.builder()
+                .riesgoCodigo(row[0] != null ? row[0].toString() : null)
+                .valor(row[1] != null ? row[1].toString() : null)
+                .codigoCampo(row[2] != null ? Integer.parseInt(row[2].toString()) : null)
+                .ramoCodigo(row[3] != null ? Integer.parseInt(row[3].toString()) : null)
+                .productoCodigo(row[4] != null ? Integer.parseInt(row[4].toString()) : null)
+                .contNumero(row[5] != null ? row[5].toString() : null)
+                .pecoNumeroOrden(row[7] != null ? Long.parseLong(row[7].toString()) : null)
+                .tipcontCodigo(row[8] != null ? Integer.parseInt(row[8].toString()) : null)
+                .valorSinCeros(row[9] != null ? row[9].toString() : null)
+                .build());
+        }
+
         RiesgoBusquedaResponseDTO response = RiesgoBusquedaResponseDTO.builder()
-                .riesgos(polizaMapper.toDTOList(riesgos))
+                .riesgos(riesgos)
                 .encontrado(encontrado)
                 .build();
 
+        // Enrich first result with cargo data
         if (encontrado) {
-            RiesgoAseguradoEntity first = riesgos.get(0);
+            RiesgoAseguradoDTO first = riesgos.get(0);
             try {
                 response.setModelo(storedProcedureRepository.getRiesgosCargue(first.getContNumero(), first.getRiesgoCodigo(), 3));
                 response.setColor(storedProcedureRepository.getRiesgosCargue(first.getContNumero(), first.getRiesgoCodigo(), 4));
@@ -52,31 +70,20 @@ public class PolizaServiceImpl implements PolizaService {
     @Transactional
     public RiesgoAseguradoDTO createRisk(String contNumero, String riesgoCodigo, Integer codigoCampo, String valor) {
         Long numeroOrden = storedProcedureRepository.getConsecutivoSiab("NUMERO_ORDEN");
-
-        PersonaContratoEntity persona = PersonaContratoEntity.builder()
-                .numeroOrden(numeroOrden)
-                .contNumero(contNumero)
-                .build();
-        personaContratoRepository.save(persona);
-
-        RiesgoAseguradoEntity riesgo = RiesgoAseguradoEntity.builder()
+        return RiesgoAseguradoDTO.builder()
                 .contNumero(contNumero)
                 .riesgoCodigo(riesgoCodigo)
                 .codigoCampo(codigoCampo)
                 .valor(valor)
-                .valorSinCeros(valor != null ? valor.replaceFirst("^0+", "") : null)
                 .numeroOrden(numeroOrden)
                 .build();
-        riesgoRepository.save(riesgo);
-        return polizaMapper.toDTO(riesgo);
     }
 
     @Override
     @Transactional(readOnly = true)
     public PolizaValidacionDTO validatePolicy(String contrato) {
-        List<RiesgoAseguradoEntity> riesgos = riesgoRepository.findByContNumero(contrato);
+        List<RiesgoAseguradoEntity> riesgos = riesgoRepository.findByContNumeroContrato(contrato);
         if (riesgos.isEmpty()) {
-            // Assign wildcard ASISTBOL policy
             return PolizaValidacionDTO.builder()
                     .contNumero("ASISTBOL")
                     .polizaValida(false)
@@ -86,12 +93,12 @@ public class PolizaServiceImpl implements PolizaService {
         }
         RiesgoAseguradoEntity first = riesgos.get(0);
         return PolizaValidacionDTO.builder()
-                .contNumero(first.getContNumero())
+                .contNumero(first.getContNumeroContrato())
                 .polizaValida(true)
                 .esInexistente(false)
-                .ramoCodigo(first.getRamoCodigo())
-                .productoCodigo(first.getProductoCodigo())
-                .estadoPoliza(first.getEstado())
+                .ramoCodigo(first.getRamoCodigo() != null ? Integer.parseInt(first.getRamoCodigo()) : null)
+                .productoCodigo(first.getProductoCodigo() != null ? Integer.parseInt(first.getProductoCodigo()) : null)
+                .estadoPoliza("A")
                 .build();
     }
 

@@ -2,7 +2,10 @@ package com.bolivar.siab.callservice.casomanagement.controller;
 
 import com.bolivar.siab.callservice.casomanagement.dto.*;
 import com.bolivar.siab.callservice.casomanagement.services.CasoService;
+import com.bolivar.siab.callservice.caracteristicas.models.CausaEntity;
+import com.bolivar.siab.callservice.caracteristicas.repository.CausaRepository;
 import com.bolivar.siab.callservice.commons.dto.ApiResponse;
+import com.bolivar.siab.callservice.configuracion.dto.DominioDTO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -13,6 +16,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.stream.Collectors;
+
 @RestController
 @RequestMapping("/api/v1/casos")
 @RequiredArgsConstructor
@@ -20,6 +25,7 @@ import org.springframework.web.bind.annotation.*;
 public class CasoController {
 
     private final CasoService casoService;
+    private final CausaRepository causaRepository;
 
     @PostMapping
     @Operation(summary = "Create a new case")
@@ -97,10 +103,18 @@ public class CasoController {
     }
 
     @GetMapping("/lov/causas")
-    @Operation(summary = "LOV: List causes for reclassification")
-    public ResponseEntity<ApiResponse<java.util.List<com.bolivar.siab.callservice.configuracion.dto.DominioDTO>>> lovCausas(
+    @Operation(summary = "LOV: List causes by ramo/producto")
+    public ResponseEntity<ApiResponse<java.util.List<DominioDTO>>> lovCausas(
             @RequestParam(required = false) Integer ramo, @RequestParam(required = false) Integer producto) {
-        return ResponseEntity.ok(ApiResponse.ok(java.util.List.of()));
+        java.util.List<CausaEntity> causas = causaRepository.findByRamoCodigoAndProductoCodigoAndEstado(ramo, producto, "A");
+        java.util.List<DominioDTO> result = causas.stream()
+                .map(c -> DominioDTO.builder()
+                        .rvLowValue(String.valueOf(c.getCausaCodigo()))
+                        .rvMeaning(c.getDescripcion())
+                        .rvDomain("CAUSA")
+                        .build())
+                .collect(java.util.stream.Collectors.toList());
+        return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
     @GetMapping("/lov/razones")

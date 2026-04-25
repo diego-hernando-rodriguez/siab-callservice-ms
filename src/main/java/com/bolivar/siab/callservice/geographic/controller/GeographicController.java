@@ -2,6 +2,8 @@ package com.bolivar.siab.callservice.geographic.controller;
 
 import com.bolivar.siab.callservice.commons.dto.ApiResponse;
 import com.bolivar.siab.callservice.geographic.dto.*;
+import com.bolivar.siab.callservice.geographic.models.LocalizacionGeograficaEntity;
+import com.bolivar.siab.callservice.geographic.repository.LocalizacionGeograficaRepository;
 import com.bolivar.siab.callservice.geographic.services.GeographicService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 public class GeographicController {
 
     private final GeographicService geographicService;
+    private final LocalizacionGeograficaRepository localizacionRepository;
 
     @GetMapping("/localizaciones")
     @Operation(summary = "Search cities")
@@ -47,11 +50,26 @@ public class GeographicController {
 
     // === LOV ENDPOINTS ===
 
+    @GetMapping("/localizaciones/lov/paises")
+    @Operation(summary = "LOV: Countries (LOCALIZACIONES_GEOGRAFICAS WHERE TLG_CODIGO=1)")
+    public ResponseEntity<ApiResponse<java.util.List<LocalizacionDTO>>> lovPaises() {
+        java.util.List<LocalizacionGeograficaEntity> paises = localizacionRepository.findByTlgCodigoOrderByNombreAsc(1);
+        java.util.List<LocalizacionDTO> result = paises.stream()
+                .map(p -> LocalizacionDTO.builder()
+                        .locgeCodigo(p.getCodigo())
+                        .tlgCodigo(p.getTlgCodigo())
+                        .nombre(p.getNombre())
+                        .build())
+                .collect(java.util.stream.Collectors.toList());
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
     @GetMapping("/localizaciones/lov/ciudades")
-    @Operation(summary = "LOV: City search with country filter (LLAMADA_LOCGE_CODIG_LOV5)")
-    public ResponseEntity<ApiResponse<Page<LocalizacionDTO>>> lovCiudades(
-            @RequestParam(required = false) String query, @RequestParam(required = false) String pais, Pageable pageable) {
-        return ResponseEntity.ok(ApiResponse.ok(geographicService.searchCities(query, pais, pageable)));
+    @Operation(summary = "LOV: City search with department (LLAMADA_LOCGE_CODIG_LOV5)")
+    public ResponseEntity<ApiResponse<java.util.List<LocalizacionDTO>>> lovCiudades(
+            @RequestParam(defaultValue = "1") Long pais,
+            @RequestParam(required = false, defaultValue = "") String query) {
+        return ResponseEntity.ok(ApiResponse.ok(geographicService.searchCitiesByPais(pais, query)));
     }
 
     @GetMapping("/direcciones/lov/google")

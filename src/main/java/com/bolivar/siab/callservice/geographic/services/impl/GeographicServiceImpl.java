@@ -10,6 +10,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -18,16 +21,34 @@ public class GeographicServiceImpl implements GeographicService {
     private final LocalizacionGeograficaRepository localizacionRepository;
     private final StoredProcedureRepository storedProcedureRepository;
 
+    /**
+     * LLAMADA_LOCGE_CODIG_LOV5: Cities with department filtered by country.
+     * Uses the exact Oracle Forms record group query.
+     */
+    @Override
+    public List<LocalizacionDTO> searchCitiesByPais(Long pais, String nombre) {
+        List<Object[]> rows = localizacionRepository.findCitiesWithDepartmentByPais(
+                pais, nombre != null ? nombre : "");
+        return rows.stream().map(row -> LocalizacionDTO.builder()
+                .locgeCodigo(((Number) row[0]).longValue())
+                .nombre((String) row[1])
+                .departamento((String) row[2])
+                .tlgCodigo(((Number) row[3]).intValue())
+                .build()
+        ).collect(Collectors.toList());
+    }
+
     @Override
     public Page<LocalizacionDTO> searchCities(String nombre, String pais, Pageable pageable) {
-        if (pais != null) {
-            return localizacionRepository.findByPaisAndTlgCodigo(pais, 3, pageable)
-                    .map(e -> LocalizacionDTO.builder().locgeCodigo(e.getLocgeCodigo()).nombre(e.getNombre())
-                            .departamento(e.getDepartamento()).pais(e.getPais()).latitud(e.getLatitud()).longitud(e.getLongitud()).build());
-        }
-        return localizacionRepository.findByNombreContainingIgnoreCaseAndTlgCodigo(nombre != null ? nombre : "", 3, pageable)
-                .map(e -> LocalizacionDTO.builder().locgeCodigo(e.getLocgeCodigo()).nombre(e.getNombre())
-                        .departamento(e.getDepartamento()).pais(e.getPais()).latitud(e.getLatitud()).longitud(e.getLongitud()).build());
+        return localizacionRepository.findByNombreContainingIgnoreCaseAndTlgCodigo(
+                nombre != null ? nombre : "", 3, pageable)
+                .map(e -> LocalizacionDTO.builder()
+                        .locgeCodigo(e.getCodigo())
+                        .tlgCodigo(e.getTlgCodigo())
+                        .nombre(e.getNombre())
+                        .latitud(e.getLatitud() != null ? String.valueOf(e.getLatitud()) : null)
+                        .longitud(e.getLongitud() != null ? String.valueOf(e.getLongitud()) : null)
+                        .build());
     }
 
     @Override
@@ -50,7 +71,6 @@ public class GeographicServiceImpl implements GeographicService {
 
     @Override
     public CoordenadasDTO getCoordinates(Long locgeCodigo, String direccion) {
-        String coordenadas = storedProcedureRepository.getRegistrosCoordenadas(locgeCodigo, direccion);
         return CoordenadasDTO.builder().locgeCodigo(locgeCodigo).direccion(direccion).build();
     }
 
