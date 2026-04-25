@@ -1,0 +1,65 @@
+server:
+  port: ${SERVER_PORT:8080}
+  servlet:
+    context-path: /callservice
+
+spring:
+  application:
+    name: siab-callservice-ms
+  datasource:
+    url: jdbc:oracle:thin:@${DB_HOST:10.1.20.98}:${DB_PORT:1521}/${DB_SERVICE:ASTB}
+    username: ${DB_USERNAME:TEDB80210083}
+    password: ${DB_PASSWORD:Colombia123*}
+    driver-class-name: oracle.jdbc.OracleDriver
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      idle-timeout: 30000
+      pool-name: CallServiceHikariPool
+      max-lifetime: 1800000
+      connection-timeout: 30000
+  jpa:
+    database-platform: org.hibernate.dialect.OracleDialect
+    hibernate:
+      ddl-auto: none
+    show-sql: ${JPA_SHOW_SQL:false}
+    properties:
+      hibernate:
+        format_sql: true
+        default_schema: NASIST
+        jdbc:
+          batch_size: 25
+        order_inserts: true
+        order_updates: true
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+
+# External service configuration
+external-services:
+  clicksoftware:
+    enabled: ${CLICKSOFTWARE_ENABLED:false}
+    base-url: ${CLICKSOFTWARE_URL:http://localhost:9090/clicksoftware}
+  salesforce:
+    enabled: ${SALESFORCE_ENABLED:false}
+    base-url: ${SALESFORCE_URL:http://localhost:9091/salesforce}
+  google-maps:
+    api-key: ${GOOGLE_MAPS_API_KEY:}
+    geocoding-url: ${GOOGLE_GEOCODING_URL:https://maps.googleapis.com/maps/api/geocode/json}
+  notifications:
+    email-enabled: ${EMAIL_ENABLED:false}
+    sms-enabled: ${SMS_ENABLED:false}
+
+# Logging configuration
+logging:
+  level:
+    root: INFO
+    com.bolivar.siab.callservice: ${LOG_LEVEL:DEBUG}
+    org.springframework.web: INFO
+    org.hibernate.SQL: ${HIBERNATE_LOG_LEVEL:DEBUG}
+    org.hibernate.type.descriptor.sql.BasicBinder: ${HIBERNATE_BINDER_LOG:TRACE}
