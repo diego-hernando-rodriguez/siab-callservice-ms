@@ -41,7 +41,7 @@ public class GeographicServiceImpl implements GeographicService {
     @Override
     public Page<LocalizacionDTO> searchCities(String nombre, String pais, Pageable pageable) {
         return localizacionRepository.findByNombreContainingIgnoreCaseAndTlgCodigo(
-                nombre != null ? nombre : "", 3, pageable)
+                        nombre != null ? nombre : "", 3, pageable)
                 .map(e -> LocalizacionDTO.builder()
                         .locgeCodigo(e.getCodigo())
                         .tlgCodigo(e.getTlgCodigo())
@@ -138,14 +138,10 @@ public class GeographicServiceImpl implements GeographicService {
             log.warn("External geocoding API error: {}", e.getMessage());
         }
 
-        boolean encontrado = direccionUnica != null
-                && !direccionUnica.isEmpty()
-                && !"INVALIDA".equalsIgnoreCase(direccionUnica.trim());
-
         return GeocodificacionResponseDTO.builder()
-                .direccionFormateada(encontrado ? direccionUnica : request.getDireccion())
-                .ciudad(ciudadUnica != null ? ciudadUnica : nombreCiudad)
-                .encontrado(encontrado)
+                .direccionFormateada(request.getDireccion())
+                .ciudad(nombreCiudad)
+                .encontrado(false)
                 .build();
     }
 

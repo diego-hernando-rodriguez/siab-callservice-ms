@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -151,12 +152,17 @@ public class PolizaServiceImpl implements PolizaService {
         return rows;
     }
 
+    @Override
+    public List<Map<String, Object>> getRiesgosCedula(String ramo, String producto, String ramo2, String producto2, String valor, Long pais, String existente) {
+        return List.of();
+    }
+
     /**
      * KEY-NEXT-ITEM step 2: Calls P_RIESGOS_CEDULA then reads T_RIESGOS_CEDULA.
      * Returns the list of contracts/risks for the selected product.
      */
-    @Override
     @Transactional
+    @Override
     public java.util.List<java.util.Map<String, Object>> getRiesgosCedula(
             String ramo, String producto, String ramo2, String producto2, String valor, Long pais) {
         log.info("P_RIESGOS_CEDULA: ramo={}, producto={}, ramo2={}, producto2={}, valor={}, pais={}", ramo, producto, ramo2, producto2, valor, pais);

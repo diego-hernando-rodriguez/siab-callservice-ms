@@ -258,6 +258,11 @@ public class CasoServiceImpl implements CasoService {
                 int m = entity.getHoraLlamada() % 60;
                 response.setHoraLlamadaFormatted(String.format("%02d:%02d", h, m));
             }
+            // Pais via PKG_MIGRACION_PAIS.F_TRAE_PAIS (POST-QUERY from fmt)
+            if (entity.getLocgeCodigo() != null && entity.getTlgCodigo() != null) {
+                String pais = storedProcedureRepository.getPais(entity.getLocgeCodigo(), entity.getTlgCodigo());
+                response.setPais(pais);
+            }
             // Envio Click/SF
             String envioClick = "S".equals(entity.getMcaEnvioClicksoftware()) ? "SI" : "NO";
             String envioSf = "S".equals(entity.getMcaEnvioSalesforce()) ? "SI" : "NO";
