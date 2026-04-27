@@ -60,9 +60,9 @@ public class CasoServiceImpl implements CasoService {
         entity.setFechaHoraLlamada(LocalDateTime.now());
         // HORA_LLAMADA is NUMBER (minutes since midnight) in Oracle
         entity.setHoraLlamada(LocalDateTime.now().getHour() * 60 + LocalDateTime.now().getMinute());
-        entity.setEstadoLlamada("A"); // Abierto
+        entity.setEstadoLlamada("E"); // En espera
         entity.setOperador("ANGULAR");
-        entity.setPlacaRiesgo(request.getRiesgoCodigo());
+        entity.setPlacaRiesgo(request.getPlacaRiesgo() != null ? request.getPlacaRiesgo() : request.getRiesgoCodigo());
 
         // OBSERVACIONES_LAR: if null, set "INICIO DE CASO" (from PRE-INSERT)
         if (entity.getObservacionesLar() == null || entity.getObservacionesLar().isEmpty()) {
