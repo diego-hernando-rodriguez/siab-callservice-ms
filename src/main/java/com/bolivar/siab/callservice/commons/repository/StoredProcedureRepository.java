@@ -43,8 +43,18 @@ public class StoredProcedureRepository {
         return callStringFunctionWithParam("PKG_DESCRIPTORES", "F_RAMO", "P_RAMO_CODIGO", ramoCodigo, Types.NUMERIC);
     }
 
-    public String getDescriptorProducto(Integer productoCodigo) {
-        return callStringFunctionWithParam("PKG_DESCRIPTORES", "F_PRODUCTO", "P_PRODUCTO_CODIGO", productoCodigo, Types.NUMERIC);
+    public String getDescriptorProducto(Integer ramoCodigo, Integer productoCodigo) {
+        SimpleJdbcCall jdbcCall = new SimpleJdbcCall(jdbcTemplate)
+                .withSchemaName("NASIST")
+                .withCatalogName("PKG_DESCRIPTORES")
+                .withFunctionName("F_PRODUCTO")
+                .withoutProcedureColumnMetaDataAccess()
+                .declareParameters(
+                        new SqlOutParameter("RETURN", Types.VARCHAR),
+                        new SqlParameter("P_RAMO_CODIGO", Types.NUMERIC),
+                        new SqlParameter("P_PRODUCTO_CODIGO", Types.NUMERIC));
+        Map<String, Object> result = jdbcCall.execute(ramoCodigo, productoCodigo);
+        return (String) result.get("RETURN");
     }
 
     public String getDescriptorCausa(Long causaCodigo) {
@@ -472,6 +482,33 @@ public class StoredProcedureRepository {
         return (String) result.get("RETURN");
     }
 
+    // ========== GENERIC DESCRIPTOR ==========
+
+    /**
+     * Generic descriptor resolver that routes to the appropriate PKG_DESCRIPTORES function
+     * based on the tipo parameter.
+     *
+     * @param tipo   one of RAMO, PRODUCTO, CAUSA, ENTIDAD, CARACTERISTICAS
+     * @param codigo the numeric code to resolve
+     * @return the descriptor string, or null if not found
+     */
+    public String getDescriptor(String tipo, String codigo) {
+        if (tipo == null || codigo == null) {
+            return null;
+        }
+        return switch (tipo.toUpperCase()) {
+            case "RAMO" -> getDescriptorRamo(Integer.valueOf(codigo));
+            case "PRODUCTO" -> getDescriptorProducto(0, Integer.valueOf(codigo));
+            case "CAUSA" -> getDescriptorCausa(Long.valueOf(codigo));
+            case "ENTIDAD" -> getDescriptorEntidad(Long.valueOf(codigo));
+            case "CARACTERISTICAS" -> getDescriptorCaracteristicas(Integer.valueOf(codigo));
+            default -> {
+                log.warn("Tipo de descriptor no soportado: {}", tipo);
+                yield null;
+            }
+        };
+    }
+
     // ========== HELPER METHODS ==========
 
     private String callStringFunction(String packageName, String functionName) {
@@ -479,6 +516,7 @@ public class StoredProcedureRepository {
                 .withSchemaName("NASIST")
                 .withCatalogName(packageName)
                 .withFunctionName(functionName)
+                .withoutProcedureColumnMetaDataAccess()
                 .declareParameters(new SqlOutParameter("RETURN", Types.VARCHAR));
         Map<String, Object> result = jdbcCall.execute();
         return (String) result.get("RETURN");
@@ -490,6 +528,7 @@ public class StoredProcedureRepository {
                 .withSchemaName("NASIST")
                 .withCatalogName(packageName)
                 .withFunctionName(functionName)
+                .withoutProcedureColumnMetaDataAccess()
                 .declareParameters(
                         new SqlOutParameter("RETURN", Types.VARCHAR),
                         new SqlParameter(paramName, sqlType));

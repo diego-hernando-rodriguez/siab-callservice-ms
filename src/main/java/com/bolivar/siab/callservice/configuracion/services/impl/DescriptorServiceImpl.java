@@ -17,8 +17,8 @@ public class DescriptorServiceImpl implements DescriptorService {
     }
 
     @Override
-    public String getDescriptorProducto(Integer productoCodigo) {
-        return storedProcedureRepository.getDescriptorProducto(productoCodigo);
+    public String getDescriptorProducto(Integer ramoCodigo, Integer productoCodigo) {
+        return storedProcedureRepository.getDescriptorProducto(ramoCodigo, productoCodigo);
     }
 
     @Override

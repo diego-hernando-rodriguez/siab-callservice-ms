@@ -44,7 +44,7 @@ public class ControllerExceptionHandler {
         log.error("Validation errors: {}", errors);
         ApiResponse<Map<String, String>> response = ApiResponse.<Map<String, String>>builder()
                 .success(false)
-                .message("Validation failed")
+                .message("Error de validación")
                 .errorCode("VALIDATION_ERROR")
                 .data(errors)
                 .build();
@@ -78,7 +78,7 @@ public class ControllerExceptionHandler {
         log.error("Unexpected error occurred", ex);
         ApiResponse<Void> response = ApiResponse.<Void>builder()
                 .success(false)
-                .message("An unexpected error occurred. Please try again later.")
+                .message("Ocurrió un error inesperado. Intente nuevamente.")
                 .errorCode("INTERNAL_ERROR")
                 .build();
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);

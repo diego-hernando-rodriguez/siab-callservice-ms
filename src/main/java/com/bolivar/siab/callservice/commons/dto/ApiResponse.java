@@ -1,6 +1,7 @@
 package com.bolivar.siab.callservice.commons.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -19,18 +20,24 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
+@Schema(description = "Respuesta estándar de la API para todos los endpoints REST")
 public class ApiResponse<T> {
 
     @Builder.Default
+    @Schema(description = "Indica si la operación fue exitosa", example = "true")
     private boolean success = true;
 
+    @Schema(description = "Mensaje descriptivo del resultado o error", example = "Operación exitosa")
     private String message;
 
+    @Schema(description = "Código de error cuando success=false", example = "VALIDATION_ERROR")
     private String errorCode;
 
+    @Schema(description = "Datos de respuesta de la operación")
     private T data;
 
     @Builder.Default
+    @Schema(description = "Marca de tiempo de la respuesta", example = "2025-01-15T10:30:00")
     private LocalDateTime timestamp = LocalDateTime.now();
 
     /**

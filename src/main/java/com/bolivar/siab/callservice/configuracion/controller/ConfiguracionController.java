@@ -43,11 +43,13 @@ public class ConfiguracionController {
     @GetMapping("/descriptores/{tipo}/{codigo}")
     @Operation(summary = "Get descriptor via PKG_DESCRIPTORES")
     public ResponseEntity<ApiResponse<DescriptorDTO>> getDescriptor(
-            @PathVariable String tipo, @PathVariable String codigo) {
+            @PathVariable String tipo, @PathVariable String codigo,
+            @RequestParam(required = false) Integer ramo) {
         String descripcion;
         switch (tipo.toUpperCase()) {
             case "RAMO": descripcion = descriptorService.getDescriptorRamo(Integer.parseInt(codigo)); break;
-            case "PRODUCTO": descripcion = descriptorService.getDescriptorProducto(Integer.parseInt(codigo)); break;
+            case "PRODUCTO": descripcion = descriptorService.getDescriptorProducto(
+                    ramo != null ? ramo : 0, Integer.parseInt(codigo)); break;
             case "CAUSA": descripcion = descriptorService.getDescriptorCausa(Long.parseLong(codigo)); break;
             case "CARACTERISTICA": descripcion = descriptorService.getDescriptorCaracteristicas(Integer.parseInt(codigo)); break;
             case "ENTIDAD": descripcion = descriptorService.getDescriptorEntidad(Long.parseLong(codigo)); break;

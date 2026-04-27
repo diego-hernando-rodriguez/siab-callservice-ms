@@ -8,4 +8,5 @@ import java.util.List;
 @Repository
 public interface CartaRepository extends JpaRepository<CartaEntity, Long> {
     List<CartaEntity> findByNumeroAutorizacion(Long numeroAutorizacion);
+    List<CartaEntity> findByLlamadaNumero(Long llamadaNumero);
 }

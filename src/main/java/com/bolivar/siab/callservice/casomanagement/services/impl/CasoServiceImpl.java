@@ -90,6 +90,14 @@ public class CasoServiceImpl implements CasoService {
         LlamadaEntity entity = llamadaRepository.findById(numero)
                 .orElseThrow(() -> new BusinessException("CASO_NO_ENCONTRADO",
                         "Caso no encontrado: " + numero));
+
+        // Validate state allows modification
+        String estado = entity.getEstadoLlamada();
+        if ("C".equals(estado) || "X".equals(estado)) {
+            throw new BusinessException("CASO_ESTADO_INVALIDO",
+                    "El caso está " + ("C".equals(estado) ? "cerrado" : "anulado") + " y no puede modificarse");
+        }
+
         casoMapper.updateEntity(request, entity);
         LlamadaEntity saved = llamadaRepository.save(entity);
         return enrichResponse(saved);
@@ -208,7 +216,8 @@ public class CasoServiceImpl implements CasoService {
                 response.setDspRamo(storedProcedureRepository.getDescriptorRamo(Integer.parseInt(entity.getRamoCodigo())));
             }
             if (entity.getProductoCodigo() != null) {
-                response.setDspProducto(storedProcedureRepository.getDescriptorProducto(Integer.parseInt(entity.getProductoCodigo())));
+                Integer ramo = entity.getRamoCodigo() != null ? Integer.parseInt(entity.getRamoCodigo()) : 0;
+                response.setDspProducto(storedProcedureRepository.getDescriptorProducto(ramo, Integer.parseInt(entity.getProductoCodigo())));
             }
             if (entity.getEstadoLlamada() != null) {
                 response.setDspEstadoLlamada(entity.getEstadoLlamada());

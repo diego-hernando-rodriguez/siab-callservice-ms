@@ -55,6 +55,10 @@ external-services:
     email-enabled: ${EMAIL_ENABLED:false}
     sms-enabled: ${SMS_ENABLED:false}
 
+# CORS configuration
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:*}
+
 # Logging configuration
 logging:
   level:
