@@ -29,6 +29,23 @@ public class GeographicController {
         return ResponseEntity.ok(ApiResponse.ok(geographicService.searchCities(nombre, pais, pageable)));
     }
 
+    @GetMapping("/localizaciones/{locgeCodigo}/detalle")
+    @Operation(summary = "Get city detail with department and country code")
+    public ResponseEntity<ApiResponse<LocalizacionDTO>> getCityDetail(@PathVariable Long locgeCodigo) {
+        java.util.List<Object[]> rows = localizacionRepository.findCityDepartmentAndCountryByCodigo(locgeCodigo);
+        if (rows.isEmpty()) {
+            return ResponseEntity.ok(ApiResponse.ok(LocalizacionDTO.builder().locgeCodigo(locgeCodigo).build()));
+        }
+        Object[] row = rows.get(0);
+        return ResponseEntity.ok(ApiResponse.ok(LocalizacionDTO.builder()
+                .locgeCodigo(locgeCodigo)
+                .nombre(row[0] != null ? row[0].toString() : null)
+                .departamento(row[1] != null ? row[1].toString() : null)
+                .pais(row[2] != null ? row[2].toString() : null)
+                .tlgCodigo(3)
+                .build()));
+    }
+
     @GetMapping("/localizaciones/{codigo}/pais")
     @Operation(summary = "Get country for location")
     public ResponseEntity<ApiResponse<String>> getPais(@PathVariable Long codigo, @RequestParam(defaultValue = "3") Integer tlgCodigo) {

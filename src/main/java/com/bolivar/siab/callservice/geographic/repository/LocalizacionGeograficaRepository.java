@@ -91,4 +91,18 @@ public interface LocalizacionGeograficaRepository extends JpaRepository<Localiza
         "AND cg.padre_locg_tlg_codigo = 2 " +
         "AND ROWNUM = 1")
     List<Object[]> findCityAndDepartmentByCodigo(@Param("locgeCodigo") Long locgeCodigo);
+
+    /**
+     * Get city, department and country code by locge_codigo.
+     * Traverses: city(tlg=3) → department(tlg=2) → country(tlg=1)
+     */
+    @Query(nativeQuery = true, value =
+        "SELECT Initcap(lg1.nombre) as ciudad, Initcap(lg2.nombre) as departamento, lg3.codigo as pais_codigo " +
+        "FROM localizaciones_geograficas lg1 " +
+        "JOIN componentes_geograficos cg1 ON lg1.codigo = cg1.locg_codigo AND cg1.locg_tlg_codigo = 3 AND cg1.padre_locg_tlg_codigo = 2 " +
+        "JOIN localizaciones_geograficas lg2 ON cg1.padre_locg_codigo = lg2.codigo AND lg2.tlg_codigo = 2 " +
+        "JOIN componentes_geograficos cg2 ON lg2.codigo = cg2.locg_codigo AND cg2.locg_tlg_codigo = 2 AND cg2.padre_locg_tlg_codigo = 1 " +
+        "JOIN localizaciones_geograficas lg3 ON cg2.padre_locg_codigo = lg3.codigo AND lg3.tlg_codigo = 1 " +
+        "WHERE lg1.codigo = :locgeCodigo AND lg1.tlg_codigo = 3 AND ROWNUM = 1")
+    List<Object[]> findCityDepartmentAndCountryByCodigo(@Param("locgeCodigo") Long locgeCodigo);
 }
