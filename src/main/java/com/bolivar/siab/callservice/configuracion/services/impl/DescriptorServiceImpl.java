@@ -17,13 +17,13 @@ public class DescriptorServiceImpl implements DescriptorService {
     }
 
     @Override
-    public String getDescriptorProducto(Integer productoCodigo) {
-        return storedProcedureRepository.getDescriptorProducto(productoCodigo);
+    public String getDescriptorProducto(Integer ramoCodigo, Integer productoCodigo) {
+        return storedProcedureRepository.getDescriptorProducto(ramoCodigo, productoCodigo);
     }
 
     @Override
-    public String getDescriptorCausa(Long causaCodigo) {
-        return storedProcedureRepository.getDescriptorCausa(causaCodigo);
+    public String getDescriptorCausa(Integer ramoCodigo, Integer productoCodigo, Long causaCodigo) {
+        return storedProcedureRepository.getDescriptorCausa(ramoCodigo, productoCodigo, causaCodigo);
     }
 
     @Override

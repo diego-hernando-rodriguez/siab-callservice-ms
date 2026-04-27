@@ -60,7 +60,7 @@ public class CasoServiceImpl implements CasoService {
         entity.setHoraLlamada(LocalDateTime.now().getHour() * 60 + LocalDateTime.now().getMinute());
         entity.setEstadoLlamada("A"); // Abierto
         entity.setOperador("ANGULAR");
-        entity.setPlacaRiesgo(request.getRiesgoCodigo());
+        entity.setPlacaRiesgo(request.getPlacaRiesgo() != null ? request.getPlacaRiesgo() : request.getRiesgoCodigo());
 
         // OBSERVACIONES_LAR: if null, set "INICIO DE CASO" (from PRE-INSERT)
         if (entity.getObservacionesLar() == null || entity.getObservacionesLar().isEmpty()) {
@@ -71,17 +71,30 @@ public class CasoServiceImpl implements CasoService {
         LlamadaEntity saved = llamadaRepository.save(entity);
         log.info("Case created with numero: {}, sini: {}", saved.getNumero(), saved.getNumeroSiniestro());
 
-        // POST-INSERT: Insert observations via PKG_INSERTAR
-        if (request.getObservacionesLar() != null && !request.getObservacionesLar().isEmpty()) {
-            String obsFormatted = "&" + "ANGULAR" + "|" + java.time.format.DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm").format(LocalDateTime.now()) + "|" + request.getObservacionesLar().trim();
+        // POST-INSERT: Insert observations via PKG_INSERTAR (non-critical, don't fail the save)
+        if (request.getObservacionesLar() != null && !request.getObservacionesLar().isEmpty()
+                && !"INICIO DE CASO".equals(request.getObservacionesLar())) {
             try {
-                String error = storedProcedureRepository.insertarObservacionesCaso(
-                        saved.getNumero(), saved.getNumeroSiniestro(), obsFormatted);
-                if (error != null) { log.warn("Error inserting observations: {}", error); }
+                String obsFormatted = "&ANGULAR|" + java.time.format.DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm").format(LocalDateTime.now()) + "|" + request.getObservacionesLar().trim();
+                storedProcedureRepository.insertarObservacionesCaso(saved.getNumero(), saved.getNumeroSiniestro(), obsFormatted);
             } catch (Exception e) { log.warn("PKG_INSERTAR error: {}", e.getMessage()); }
         }
 
-        return enrichResponse(saved);
+        // Return basic response without enrichment to avoid transaction issues
+        CasoResponseDTO response = CasoResponseDTO.builder()
+                .numero(saved.getNumero())
+                .numeroSiniestro(saved.getNumeroSiniestro())
+                .contNumeroContrato(saved.getContNumeroContrato())
+                .ramoCodigo(saved.getRamoCodigo())
+                .productoCodigo(saved.getProductoCodigo())
+                .causaCodigo(saved.getCausaCodigo())
+                .locgeCodigo(saved.getLocgeCodigo())
+                .direccion(saved.getDireccion())
+                .estadoLlamada(saved.getEstadoLlamada())
+                .fechaLlamada(saved.getFechaLlamada())
+                .horaLlamada(saved.getHoraLlamada())
+                .build();
+        return response;
     }
 
     @Override
@@ -207,8 +220,9 @@ public class CasoServiceImpl implements CasoService {
             if (entity.getRamoCodigo() != null) {
                 response.setDspRamo(storedProcedureRepository.getDescriptorRamo(Integer.parseInt(entity.getRamoCodigo())));
             }
-            if (entity.getProductoCodigo() != null) {
-                response.setDspProducto(storedProcedureRepository.getDescriptorProducto(Integer.parseInt(entity.getProductoCodigo())));
+            if (entity.getRamoCodigo() != null && entity.getProductoCodigo() != null) {
+                response.setDspProducto(storedProcedureRepository.getDescriptorProducto(
+                        Integer.parseInt(entity.getRamoCodigo()), Integer.parseInt(entity.getProductoCodigo())));
             }
             if (entity.getEstadoLlamada() != null) {
                 response.setDspEstadoLlamada(entity.getEstadoLlamada());

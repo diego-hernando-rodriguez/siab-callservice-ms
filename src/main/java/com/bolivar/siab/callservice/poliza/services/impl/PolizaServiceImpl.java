@@ -121,11 +121,33 @@ public class PolizaServiceImpl implements PolizaService {
     @Transactional
     public java.util.List<java.util.Map<String, Object>> getProductosConsulta(
             String ramo, String producto, Long pais, String valor, Integer codigoCampo) {
-        log.info("P_PRODUCTOS_CONSULTA: ramo={}, producto={}, pais={}, valor={}, campo={}", ramo, producto, pais, valor, codigoCampo);
+        log.info("P_PRODUCTOS_CONSULTA1: ramo={}, producto={}, pais={}, valor={}, campo={}", ramo, producto, pais, valor, codigoCampo);
+        if(ramo==null){
+            ramo="0";
+        }
+        if(producto==null){
+            producto="0";
+        }
+        // The procedure P_PRODUCTOS_CONSULTA internally clears and repopulates T_PRODUCTOS_CONSULTA
+        try { jdbcTemplate.execute("DELETE FROM NASIST.T_PRODUCTOS_CONSULTA1"); } catch (Exception e) { log.debug("Could not clear T_PRODUCTOS_CONSULTA: {}", e.getMessage()); }
         storedProcedureRepository.ejecutarProductosConsulta(ramo, producto, pais, valor, codigoCampo);
-        // Read results from T_PRODUCTOS_CONSULTA
-        java.util.List<java.util.Map<String, Object>> rows = jdbcTemplate.queryForList(
-                "SELECT EXISTE, INTERNO, COD_RAMO, RAMO, COD_PRODUCTO, PRODUCTO, INEXISTENTE FROM NASIST.T_PRODUCTOS_CONSULTA ORDER BY COD_RAMO, COD_PRODUCTO");
+        java.util.List<java.util.Map<String, Object>> rows = new java.util.ArrayList<>(jdbcTemplate.queryForList(
+                "SELECT EXISTE, INTERNO, COD_RAMO, RAMO, COD_PRODUCTO, PRODUCTO, INEXISTENTE FROM NASIST.T_PRODUCTOS_CONSULTA ORDER BY COD_RAMO, COD_PRODUCTO"));
+
+        // If the procedure didn't return the existing product, add it from direct query
+        boolean hasExistente = rows.stream().anyMatch(r -> "S".equals(r.get("EXISTE")));
+        if (!hasExistente) {
+            java.util.List<java.util.Map<String, Object>> existentes = jdbcTemplate.queryForList(
+                "SELECT DISTINCT 'S' as EXISTE, 'N' as INTERNO, ra.ramo_codigo as COD_RAMO, " +
+                "r.descripcion as RAMO, ra.producto_codigo as COD_PRODUCTO, p.descripcion as PRODUCTO, " +
+                "CAST(NULL AS VARCHAR2(200)) as INEXISTENTE " +
+                "FROM NASIST.riesgos_asegurados ra, NASIST.ramos r, NASIST.productos p " +
+                "WHERE ra.valor_sin_ceros = LTRIM(?, '0') " +
+                "AND ra.cont_numero_contrato NOT LIKE '%ASIS%' " +
+                "AND r.codigo = ra.ramo_codigo AND p.ramo_codigo = ra.ramo_codigo AND p.codigo = ra.producto_codigo " +
+                "AND ROWNUM <= 10", valor);
+            rows.addAll(0, existentes);
+        }
         return rows;
     }
 
@@ -138,6 +160,7 @@ public class PolizaServiceImpl implements PolizaService {
     public java.util.List<java.util.Map<String, Object>> getRiesgosCedula(
             String ramo, String producto, String ramo2, String producto2, String valor, Long pais) {
         log.info("P_RIESGOS_CEDULA: ramo={}, producto={}, ramo2={}, producto2={}, valor={}, pais={}", ramo, producto, ramo2, producto2, valor, pais);
+        try { jdbcTemplate.execute("DELETE FROM NASIST.T_RIESGOS_CEDULA"); } catch (Exception e) { log.debug("Could not clear T_RIESGOS_CEDULA: {}", e.getMessage()); }
         storedProcedureRepository.ejecutarRiesgosCedula(ramo, producto, ramo2, producto2, "N", valor, pais);
         // Read results from T_RIESGOS_CEDULA
         java.util.List<java.util.Map<String, Object>> rows = jdbcTemplate.queryForList(

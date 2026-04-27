@@ -179,8 +179,7 @@ public class LlamadaEntity {
     @Column(name = "COD_RAZON_RECLASIFICA")
     private Long codRazonReclasifica;
 
-    // OBSERVACIONES_LAR is LONG type - JPA maps it as String
-    @Column(name = "OBSERVACIONES_LAR")
-    @Lob
+    // OBSERVACIONES_LAR is LONG type in Oracle
+    @Column(name = "OBSERVACIONES_LAR", columnDefinition = "LONG")
     private String observacionesLar;
 }

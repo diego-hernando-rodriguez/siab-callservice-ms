@@ -69,70 +69,79 @@ public class GeographicServiceImpl implements GeographicService {
     public GeocodificacionResponseDTO geocodeAddress(GeocodificacionRequestDTO request) {
         log.info("Geocoding address: {} for city: {}", request.getDireccion(), request.getLocgeCodigo());
 
-        // Step 1: FU_DIRECCION_LIMPIA
-        String direccionLimpia;
-        try {
-            direccionLimpia = storedProcedureRepository.getDireccionLimpia(request.getDireccion());
-        } catch (Exception e) {
-            log.warn("FU_DIRECCION_LIMPIA error: {}", e.getMessage());
-            direccionLimpia = request.getDireccion();
-        }
-
-        if (direccionLimpia == null || direccionLimpia.isEmpty()) {
-            return GeocodificacionResponseDTO.builder()
-                    .direccionFormateada(request.getDireccion())
-                    .encontrado(false)
-                    .build();
-        }
-
-        // Step 2: PR_BUSQUEDA_DIRECCION_INTEGRA
-        try {
-            storedProcedureRepository.busquedaDireccionIntegra(
-                    request.getLocgeCodigo(), direccionLimpia, request.getUsuario());
-        } catch (Exception e) {
-            log.warn("PR_BUSQUEDA_DIRECCION_INTEGRA error: {}", e.getMessage());
-        }
-
-        // Step 3: FU_DIRECCION_UNICA(1) = address, FU_DIRECCION_UNICA(2) = city
-        String direccionUnica = null;
-        String ciudadUnica = null;
-        try {
-            direccionUnica = storedProcedureRepository.getDireccionUnica(1);
-            ciudadUnica = storedProcedureRepository.getDireccionUnica(2);
-        } catch (Exception e) {
-            log.warn("FU_DIRECCION_UNICA error: {}", e.getMessage());
-        }
-
-        // Step 4: Get city name for fallback
+        // Get city name from locgeCodigo
         String nombreCiudad = null;
+        String departamento = null;
         try {
-            nombreCiudad = storedProcedureRepository.getNombreCiudad(request.getLocgeCodigo());
-        } catch (Exception e) {
-            log.warn("FU_NOMBRE_CIUDAD error: {}", e.getMessage());
-        }
-
-        // Step 5: If INVALIDA, retry with city name
-        if (direccionUnica != null && "INVALIDA".equalsIgnoreCase(direccionUnica.trim())) {
-            log.info("Address INVALIDA, retrying with city name: {}", nombreCiudad);
-            if (nombreCiudad != null) {
-                try {
-                    storedProcedureRepository.busquedaDireccionIntegra(
-                            request.getLocgeCodigo(), nombreCiudad, request.getUsuario());
-                    direccionUnica = storedProcedureRepository.getDireccionUnica(1);
-                } catch (Exception e) {
-                    log.warn("Retry with city name error: {}", e.getMessage());
+            var rows = localizacionRepository.findCitiesWithDepartmentByPais(
+                    1L, ""); // Get all cities for Colombia
+            // Find the specific city
+            for (Object[] row : localizacionRepository.findCitiesWithDepartmentByPais(1L, "")) {
+                if (((Number) row[0]).longValue() == request.getLocgeCodigo()) {
+                    nombreCiudad = (String) row[1];
+                    departamento = (String) row[2];
+                    break;
                 }
             }
+        } catch (Exception e) {
+            log.debug("City lookup error: {}", e.getMessage());
         }
 
-        boolean encontrado = direccionUnica != null
-                && !direccionUnica.isEmpty()
-                && !"INVALIDA".equalsIgnoreCase(direccionUnica.trim());
+        // Fallback: direct query
+        if (nombreCiudad == null) {
+            try {
+                nombreCiudad = storedProcedureRepository.getNombreCiudad(request.getLocgeCodigo());
+            } catch (Exception e) { /* ignore */ }
+        }
+
+        // Call external geocoding API
+        try {
+            var client = new okhttp3.OkHttpClient.Builder()
+                    .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                    .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                    .build();
+
+            String jsonBody = new com.google.gson.Gson().toJson(java.util.Map.of(
+                    "address", request.getDireccion(),
+                    "city", nombreCiudad != null ? nombreCiudad : "Bogota",
+                    "department", departamento != null ? departamento : "Cundinamarca"
+            ));
+
+            var body = okhttp3.RequestBody.create(jsonBody, okhttp3.MediaType.parse("application/json"));
+            var httpRequest = new okhttp3.Request.Builder()
+                    .url("https://os7cfipof2.execute-api.us-east-1.amazonaws.com/stage/data_source/api/v1/geocoding/forward")
+                    .addHeader("Content-Type", "application/json")
+                    .addHeader("x-api-key", "sp4Eu6SuH11SGLuemzEm15aSO2HgliaD3fntHWly")
+                    .post(body)
+                    .build();
+
+            try (var response = client.newCall(httpRequest).execute()) {
+                if (response.isSuccessful() && response.body() != null) {
+                    String responseBody = response.body().string();
+                    var gson = new com.google.gson.Gson();
+                    var map = gson.fromJson(responseBody, java.util.Map.class);
+                    String formattedAddress = (String) map.get("formattedAddress");
+                    var coords = (java.util.Map) map.get("coordinates");
+                    String lat = coords != null && coords.get("latitude") != null ? coords.get("latitude").toString() : null;
+                    String lng = coords != null && coords.get("longitude") != null ? coords.get("longitude").toString() : null;
+
+                    return GeocodificacionResponseDTO.builder()
+                            .direccionFormateada(formattedAddress)
+                            .ciudad(nombreCiudad)
+                            .latitud(lat)
+                            .longitud(lng)
+                            .encontrado(formattedAddress != null && !formattedAddress.isEmpty())
+                            .build();
+                }
+            }
+        } catch (Exception e) {
+            log.warn("External geocoding API error: {}", e.getMessage());
+        }
 
         return GeocodificacionResponseDTO.builder()
-                .direccionFormateada(encontrado ? direccionUnica : request.getDireccion())
-                .ciudad(ciudadUnica != null ? ciudadUnica : nombreCiudad)
-                .encontrado(encontrado)
+                .direccionFormateada(request.getDireccion())
+                .ciudad(nombreCiudad)
+                .encontrado(false)
                 .build();
     }
 

@@ -43,12 +43,31 @@ public class StoredProcedureRepository {
         return callStringFunctionWithParam("PKG_DESCRIPTORES", "F_RAMO", "P_RAMO_CODIGO", ramoCodigo, Types.NUMERIC);
     }
 
-    public String getDescriptorProducto(Integer productoCodigo) {
-        return callStringFunctionWithParam("PKG_DESCRIPTORES", "F_PRODUCTO", "P_PRODUCTO_CODIGO", productoCodigo, Types.NUMERIC);
+    public String getDescriptorProducto(Integer ramoCodigo, Integer productoCodigo) {
+        SimpleJdbcCall jdbcCall = new SimpleJdbcCall(jdbcTemplate)
+                .withSchemaName("NASIST")
+                .withCatalogName("PKG_DESCRIPTORES")
+                .withFunctionName("F_PRODUCTO")
+                .declareParameters(
+                        new SqlOutParameter("RETURN", Types.VARCHAR),
+                        new SqlParameter("P_RAMO_CODIGO", Types.NUMERIC),
+                        new SqlParameter("P_PRODUCTO_CODIGO", Types.NUMERIC));
+        Map<String, Object> result = jdbcCall.execute(ramoCodigo, productoCodigo);
+        return (String) result.get("RETURN");
     }
 
-    public String getDescriptorCausa(Long causaCodigo) {
-        return callStringFunctionWithParam("PKG_DESCRIPTORES", "F_CAUSA", "P_CAUSA_CODIGO", causaCodigo, Types.NUMERIC);
+    public String getDescriptorCausa(Integer ramoCodigo, Integer productoCodigo, Long causaCodigo) {
+        SimpleJdbcCall jdbcCall = new SimpleJdbcCall(jdbcTemplate)
+                .withSchemaName("NASIST")
+                .withCatalogName("PKG_DESCRIPTORES")
+                .withFunctionName("F_CAUSA")
+                .declareParameters(
+                        new SqlOutParameter("RETURN", Types.VARCHAR),
+                        new SqlParameter("P_RAMO_CODIGO", Types.NUMERIC),
+                        new SqlParameter("P_PRODUCTO_CODIGO", Types.NUMERIC),
+                        new SqlParameter("P_CAUSA_CODIGO", Types.NUMERIC));
+        Map<String, Object> result = jdbcCall.execute(ramoCodigo, productoCodigo, causaCodigo);
+        return (String) result.get("RETURN");
     }
 
     public String getDescriptorCaracteristicas(Integer codigoCampo) {
@@ -232,7 +251,7 @@ public class StoredProcedureRepository {
     public void ejecutarProductosConsulta(String ramoCodigo, String productoCodigo, Long pais, String riesgoValor, Integer codigoCampo) {
         SimpleJdbcCall jdbcCall = new SimpleJdbcCall(jdbcTemplate)
                 .withSchemaName("NASIST")
-                .withProcedureName("P_PRODUCTOS_CONSULTA")
+                .withProcedureName("P_PRODUCTOS_CONSULTA1")
                 .declareParameters(
                         new SqlParameter("P_LLAMADA_RAMO_CODIGO", Types.VARCHAR),
                         new SqlParameter("P_LLAMADA_PRODUCTO_CODIGO", Types.VARCHAR),
@@ -264,14 +283,63 @@ public class StoredProcedureRepository {
 
     // ========== PKG_GEO_DIRECCION_INTEGRA ==========
 
-    public String getDireccionLimpia(String direccion) {
-        return callStringFunctionWithParam("PKG_GEO_DIRECCION_INTEGRA", "FU_DIRECCION_LIMPIA",
-                "P_DIRECCION", direccion, Types.VARCHAR);
-    }
+    /**
+     * Executes the full geocoding flow in a single DB call to maintain package state:
+     * 1. FU_DIRECCION_LIMPIA
+     * 2. PR_BUSQUEDA_DIRECCION_INTEGRA  
+     * 3. FU_DIRECCION_UNICA(1) and FU_DIRECCION_UNICA(2)
+     * 4. FU_NOMBRE_CIUDAD
+     */
+    public Map<String, String> geocodificarDireccionCompleta(Long locgeCodigo, String direccion) {
+        Map<String, String> result = new java.util.HashMap<>();
+        try {
+            // Step 1: Clean address
+            String dirLimpia = jdbcTemplate.queryForObject(
+                "SELECT PKG_GEO_DIRECCION_INTEGRA.FU_DIRECCION_LIMPIA(?) FROM dual", String.class, direccion);
+            if (dirLimpia == null || dirLimpia.isEmpty()) { dirLimpia = direccion; }
 
-    public String getDireccionUnica(Integer indice) {
-        return callStringFunctionWithParam("PKG_GEO_DIRECCION_INTEGRA", "FU_DIRECCION_UNICA",
-                "P_INDICE", indice, Types.NUMERIC);
+            // Step 2: Search via procedure
+            SimpleJdbcCall busquedaCall = new SimpleJdbcCall(jdbcTemplate)
+                .withSchemaName("NASIST")
+                .withCatalogName("PKG_GEO_DIRECCION_INTEGRA")
+                .withProcedureName("PR_BUSQUEDA_DIRECCION_INTEGRA")
+                .declareParameters(
+                    new SqlParameter("PE_DIRECCION", Types.VARCHAR),
+                    new SqlParameter("PE_CODIGO_CIUDAD", Types.NUMERIC),
+                    new SqlOutParameter("PS_CODIGO_ERROR", Types.NUMERIC),
+                    new SqlOutParameter("PS_MENSAJE_ERROR", Types.VARCHAR));
+            busquedaCall.execute(dirLimpia, locgeCodigo);
+
+            // Step 3: Get results
+            String dirUnica = jdbcTemplate.queryForObject(
+                "SELECT PKG_GEO_DIRECCION_INTEGRA.FU_DIRECCION_UNICA(1) FROM dual", String.class);
+            String ciudadUnica = jdbcTemplate.queryForObject(
+                "SELECT PKG_GEO_DIRECCION_INTEGRA.FU_DIRECCION_UNICA(2) FROM dual", String.class);
+
+            // Step 4: If INVALIDA, retry with city name
+            if (dirUnica == null || "INVALIDA".equalsIgnoreCase(dirUnica.trim())) {
+                String nombreCiudad = null;
+                try {
+                    nombreCiudad = jdbcTemplate.queryForObject(
+                        "SELECT nombre FROM NASIST.localizaciones_geograficas WHERE codigo = ? AND tlg_codigo = 3",
+                        String.class, locgeCodigo);
+                } catch (Exception e) { /* ignore */ }
+                if (nombreCiudad != null) {
+                    busquedaCall.execute(nombreCiudad, locgeCodigo);
+                    dirUnica = jdbcTemplate.queryForObject(
+                        "SELECT PKG_GEO_DIRECCION_INTEGRA.FU_DIRECCION_UNICA(1) FROM dual", String.class);
+                    ciudadUnica = jdbcTemplate.queryForObject(
+                        "SELECT PKG_GEO_DIRECCION_INTEGRA.FU_DIRECCION_UNICA(2) FROM dual", String.class);
+                }
+            }
+            result.put("direccionUnica", dirUnica);
+            result.put("ciudad", ciudadUnica);
+        } catch (Exception e) {
+            log.warn("geocodificarDireccionCompleta error: {}", e.getMessage());
+            result.put("direccionUnica", null);
+            result.put("ciudad", null);
+        }
+        return result;
     }
 
     public String getRegistrosCoordenadas(Long locgeCodigo, String direccion) {
@@ -280,10 +348,8 @@ public class StoredProcedureRepository {
                 .withCatalogName("PKG_GEO_DIRECCION_INTEGRA")
                 .withFunctionName("FU_REGISTROS_COORDENADAS")
                 .declareParameters(
-                        new SqlOutParameter("RETURN", Types.VARCHAR),
-                        new SqlParameter("P_LOCGE_CODIGO", Types.NUMERIC),
-                        new SqlParameter("P_DIRECCION", Types.VARCHAR));
-        Map<String, Object> result = jdbcCall.execute(locgeCodigo, direccion);
+                        new SqlOutParameter("RETURN", Types.VARCHAR));
+        Map<String, Object> result = jdbcCall.execute();
         return (String) result.get("RETURN");
     }
 
@@ -298,10 +364,11 @@ public class StoredProcedureRepository {
                 .withCatalogName("PKG_GEO_DIRECCION_INTEGRA")
                 .withProcedureName("PR_BUSQUEDA_DIRECCION_INTEGRA")
                 .declareParameters(
-                        new SqlParameter("P_LOCGE_CODIGO", Types.NUMERIC),
-                        new SqlParameter("P_DIRECCION", Types.VARCHAR),
-                        new SqlParameter("P_USUARIO", Types.VARCHAR));
-        jdbcCall.execute(locgeCodigo, direccion, usuario);
+                        new SqlParameter("PE_DIRECCION", Types.VARCHAR),
+                        new SqlParameter("PE_CODIGO_CIUDAD", Types.NUMERIC),
+                        new SqlOutParameter("PS_CODIGO_ERROR", Types.NUMERIC),
+                        new SqlOutParameter("PS_MENSAJE_ERROR", Types.VARCHAR));
+        jdbcCall.execute(direccion, locgeCodigo);
     }
 
     // ========== PKG_PICO_PLACA ==========
