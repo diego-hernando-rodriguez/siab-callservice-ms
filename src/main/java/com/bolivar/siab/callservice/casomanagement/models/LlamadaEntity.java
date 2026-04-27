@@ -30,7 +30,7 @@ public class LlamadaEntity {
     private Integer tipcontCodigo;
 
     @Column(name = "CONT_FECHA_INICIO_VIGENCIA")
-    private LocalDate contFechaInicioVigencia;
+    private LocalDateTime contFechaInicioVigencia;
 
     @Column(name = "CONT_NUMERO_CONTRATO", length = 20)
     private String contNumeroContrato;

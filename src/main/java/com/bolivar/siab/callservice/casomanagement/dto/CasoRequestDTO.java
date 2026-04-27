@@ -29,5 +29,6 @@ public class CasoRequestDTO {
     private Integer tlgCodigo;
     private Integer tipcontCodigo;
     private Long pecoNumeroOrden;
+    private String contFechaInicioVigencia;
     private String placaRiesgo;
 }
