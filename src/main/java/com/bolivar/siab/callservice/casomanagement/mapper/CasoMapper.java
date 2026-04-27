@@ -14,6 +14,7 @@ public interface CasoMapper {
     @Mapping(target = "numero", ignore = true)
     @Mapping(target = "fechaLlamada", ignore = true)
     @Mapping(target = "numeroSiniestro", ignore = true)
+    @Mapping(target = "contFechaInicioVigencia", ignore = true)
     LlamadaEntity toEntity(CasoRequestDTO request);
 
     void updateEntity(CasoRequestDTO request, @MappingTarget LlamadaEntity entity);

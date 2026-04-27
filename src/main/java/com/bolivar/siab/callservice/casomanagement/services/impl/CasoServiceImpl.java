@@ -64,6 +64,25 @@ public class CasoServiceImpl implements CasoService {
         entity.setOperador("ANGULAR");
         entity.setPlacaRiesgo(request.getPlacaRiesgo() != null ? request.getPlacaRiesgo() : request.getRiesgoCodigo());
 
+        // Parse contFechaInicioVigencia from String to LocalDate
+        if (request.getContFechaInicioVigencia() != null && !request.getContFechaInicioVigencia().isEmpty()) {
+            try {
+                String dateStr = request.getContFechaInicioVigencia().trim();
+                // Handle: 2025-08-31T05:00:00.000+00:00, 2025-08-31 00:00:00, 2025-08-31, dd/MM/yyyy
+                if (dateStr.contains("T")) {
+                    dateStr = dateStr.substring(0, dateStr.indexOf("T"));
+                } else if (dateStr.contains(" ")) {
+                    dateStr = dateStr.substring(0, dateStr.indexOf(" "));
+                } else if (dateStr.contains("/")) {
+                    String[] parts = dateStr.split("/");
+                    dateStr = parts[2] + "-" + parts[1] + "-" + parts[0];
+                }
+                entity.setContFechaInicioVigencia(java.time.LocalDate.parse(dateStr).atStartOfDay());
+            } catch (Exception e) {
+                log.warn("Error parsing contFechaInicioVigencia '{}': {}", request.getContFechaInicioVigencia(), e.getMessage());
+            }
+        }
+
         // OBSERVACIONES_LAR: if null, set "INICIO DE CASO" (from PRE-INSERT)
         if (entity.getObservacionesLar() == null || entity.getObservacionesLar().isEmpty()) {
             entity.setObservacionesLar("INICIO DE CASO");
