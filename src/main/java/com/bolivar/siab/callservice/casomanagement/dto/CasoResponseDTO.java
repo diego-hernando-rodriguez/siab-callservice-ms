@@ -11,6 +11,8 @@ public class CasoResponseDTO {
     private String contNumeroContrato;
     private String riesgoCodigo;
     private Long locgeCodigo;
+    private Integer tlgCodigo;
+    private String dspCiudad;
     private Long causaCodigo;
     private String direccion;
     private String observacionesLar;
@@ -59,5 +61,6 @@ public class CasoResponseDTO {
     private String dspTipoAsistencia;
     private String dspOpcionCobertura;
     private String dspCoberturaVehiculo;
+    private String dspDescripcion2;
     private Integer excepciones;
 }

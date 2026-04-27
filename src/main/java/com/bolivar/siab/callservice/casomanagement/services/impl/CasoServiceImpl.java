@@ -11,6 +11,7 @@ import com.bolivar.siab.callservice.casomanagement.services.CasoService;
 import com.bolivar.siab.callservice.caracteristicas.models.CaracteristicaCausaLlamadaEntity;
 import com.bolivar.siab.callservice.caracteristicas.repository.CaracteristicaCausaLlamadaRepository;
 import com.bolivar.siab.callservice.commons.repository.StoredProcedureRepository;
+import com.bolivar.siab.callservice.geographic.repository.LocalizacionGeograficaRepository;
 import com.bolivar.siab.callservice.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +37,7 @@ public class CasoServiceImpl implements CasoService {
     private final LogCambioCausaRepository logCambioCausaRepository;
     private final CaracteristicaCausaLlamadaRepository caracteristicaRepository;
     private final StoredProcedureRepository storedProcedureRepository;
+    private final LocalizacionGeograficaRepository localizacionRepository;
     private final CasoMapper casoMapper;
 
     @Override
@@ -103,6 +105,14 @@ public class CasoServiceImpl implements CasoService {
         LlamadaEntity entity = llamadaRepository.findById(numero)
                 .orElseThrow(() -> new BusinessException("CASO_NO_ENCONTRADO",
                         "Caso no encontrado: " + numero));
+
+        // Validate state allows modification
+        String estado = entity.getEstadoLlamada();
+        if ("C".equals(estado) || "X".equals(estado)) {
+            throw new BusinessException("CASO_ESTADO_INVALIDO",
+                    "El caso está " + ("C".equals(estado) ? "cerrado" : "anulado") + " y no puede modificarse");
+        }
+
         casoMapper.updateEntity(request, entity);
         LlamadaEntity saved = llamadaRepository.save(entity);
         return enrichResponse(saved);
@@ -220,12 +230,27 @@ public class CasoServiceImpl implements CasoService {
             if (entity.getRamoCodigo() != null) {
                 response.setDspRamo(storedProcedureRepository.getDescriptorRamo(Integer.parseInt(entity.getRamoCodigo())));
             }
-            if (entity.getRamoCodigo() != null && entity.getProductoCodigo() != null) {
-                response.setDspProducto(storedProcedureRepository.getDescriptorProducto(
-                        Integer.parseInt(entity.getRamoCodigo()), Integer.parseInt(entity.getProductoCodigo())));
+            if (entity.getProductoCodigo() != null) {
+                Integer ramo = entity.getRamoCodigo() != null ? Integer.parseInt(entity.getRamoCodigo()) : 0;
+                response.setDspProducto(storedProcedureRepository.getDescriptorProducto(ramo, Integer.parseInt(entity.getProductoCodigo())));
+            }
+            if (entity.getCausaCodigo() != null) {
+                Integer ramoInt = entity.getRamoCodigo() != null ? Integer.parseInt(entity.getRamoCodigo()) : 0;
+                Integer prodInt = entity.getProductoCodigo() != null ? Integer.parseInt(entity.getProductoCodigo()) : 0;
+                response.setDspDescripcion2(storedProcedureRepository.getDescriptorCausa(ramoInt, prodInt, entity.getCausaCodigo()));
             }
             if (entity.getEstadoLlamada() != null) {
-                response.setDspEstadoLlamada(entity.getEstadoLlamada());
+                response.setDspEstadoLlamada(storedProcedureRepository.getValDominio("ESTADO_LLAMADA", entity.getEstadoLlamada()));
+            }
+            // City name lookup from LOCALIZACIONES_GEOGRAFICAS
+            if (entity.getLocgeCodigo() != null) {
+                response.setTlgCodigo(entity.getTlgCodigo());
+                List<Object[]> cityData = localizacionRepository.findCityAndDepartmentByCodigo(entity.getLocgeCodigo());
+                if (!cityData.isEmpty()) {
+                    Object[] row = cityData.get(0);
+                    response.setDspCiudad(row[0] != null ? row[0].toString() : null);
+                    response.setDspDpto(row[1] != null ? row[1].toString() : null);
+                }
             }
             // Format hora
             if (entity.getHoraLlamada() != null) {
@@ -233,6 +258,10 @@ public class CasoServiceImpl implements CasoService {
                 int m = entity.getHoraLlamada() % 60;
                 response.setHoraLlamadaFormatted(String.format("%02d:%02d", h, m));
             }
+            // Envio Click/SF
+            String envioClick = "S".equals(entity.getMcaEnvioClicksoftware()) ? "SI" : "NO";
+            String envioSf = "S".equals(entity.getMcaEnvioSalesforce()) ? "SI" : "NO";
+            response.setDspEnviadoCasoClick(envioClick + " / " + envioSf);
             // Exception count
             long exceptionCount = llamadaExcepcionRepository.countByNumeroLlamada(entity.getNumero());
             response.setExcepciones((int) exceptionCount);

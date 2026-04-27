@@ -9,5 +9,5 @@ public interface PolizaService {
     String evaluateBeneficiaryId(String contNumero, Long pecoNumeroOrden);
     String getRiesgosCargue(String contNumero, String riesgoCodigo, Integer posicion);
     java.util.List<java.util.Map<String, Object>> getProductosConsulta(String ramo, String producto, Long pais, String valor, Integer codigoCampo);
-    java.util.List<java.util.Map<String, Object>> getRiesgosCedula(String ramo, String producto, String ramo2, String producto2, String valor, Long pais);
+    java.util.List<java.util.Map<String, Object>> getRiesgosCedula(String ramo, String producto, String ramo2, String producto2, String valor, Long pais, String existente);
 }

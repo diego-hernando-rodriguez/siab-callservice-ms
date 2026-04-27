@@ -22,7 +22,8 @@ public interface LocalizacionGeograficaRepository extends JpaRepository<Localiza
      */
     @Query(nativeQuery = true, value =
         "SELECT lg1.codigo, Initcap(substr(lg1.nombre,1,30)) as ciudad, " +
-        "Initcap(substr(lg2.nombre,1,30)) as departamento, lg1.tlg_codigo " +
+        "Initcap(substr(lg2.nombre,1,30)) as departamento, lg1.tlg_codigo, " +
+        "pkg_migracion_pais.f_trae_pais(lg1.codigo, lg1.tlg_codigo) as pais_codigo " +
         "FROM localizaciones_geograficas lg1, componentes_geograficos cg, localizaciones_geograficas lg2 " +
         "WHERE lg1.tlg_codigo = 3 " +
         "AND lg1.codigo = cg.locg_codigo " +
@@ -73,4 +74,21 @@ public interface LocalizacionGeograficaRepository extends JpaRepository<Localiza
         "AND ROWNUM <= 50 " +
         "ORDER BY ra.cont_fecha_inicio_vigencia DESC")
     List<Object[]> findRiesgosByValor(@Param("valor") String valor);
+
+    /**
+     * Get city name and department name by locge_codigo.
+     * Used for geocoding to pass city/department to external service.
+     */
+    @Query(nativeQuery = true, value =
+        "SELECT Initcap(lg1.nombre) as ciudad, Initcap(lg2.nombre) as departamento " +
+        "FROM localizaciones_geograficas lg1, componentes_geograficos cg, localizaciones_geograficas lg2 " +
+        "WHERE lg1.codigo = :locgeCodigo " +
+        "AND lg1.tlg_codigo = 3 " +
+        "AND lg1.codigo = cg.locg_codigo " +
+        "AND cg.locg_tlg_codigo = 3 " +
+        "AND cg.padre_locg_codigo = lg2.codigo " +
+        "AND lg2.tlg_codigo = 2 " +
+        "AND cg.padre_locg_tlg_codigo = 2 " +
+        "AND ROWNUM = 1")
+    List<Object[]> findCityAndDepartmentByCodigo(@Param("locgeCodigo") Long locgeCodigo);
 }

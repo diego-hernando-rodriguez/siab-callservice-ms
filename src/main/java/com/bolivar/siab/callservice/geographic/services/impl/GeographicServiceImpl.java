@@ -138,10 +138,14 @@ public class GeographicServiceImpl implements GeographicService {
             log.warn("External geocoding API error: {}", e.getMessage());
         }
 
+        boolean encontrado = direccionUnica != null
+                && !direccionUnica.isEmpty()
+                && !"INVALIDA".equalsIgnoreCase(direccionUnica.trim());
+
         return GeocodificacionResponseDTO.builder()
-                .direccionFormateada(request.getDireccion())
-                .ciudad(nombreCiudad)
-                .encontrado(false)
+                .direccionFormateada(encontrado ? direccionUnica : request.getDireccion())
+                .ciudad(ciudadUnica != null ? ciudadUnica : nombreCiudad)
+                .encontrado(encontrado)
                 .build();
     }
 

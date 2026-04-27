@@ -286,7 +286,7 @@ public class StoredProcedureRepository {
     /**
      * Executes the full geocoding flow in a single DB call to maintain package state:
      * 1. FU_DIRECCION_LIMPIA
-     * 2. PR_BUSQUEDA_DIRECCION_INTEGRA  
+     * 2. PR_BUSQUEDA_DIRECCION_INTEGRA
      * 3. FU_DIRECCION_UNICA(1) and FU_DIRECCION_UNICA(2)
      * 4. FU_NOMBRE_CIUDAD
      */
@@ -515,12 +515,38 @@ public class StoredProcedureRepository {
         SimpleJdbcCall jdbcCall = new SimpleJdbcCall(jdbcTemplate)
                 .withSchemaName("NASIST")
                 .withFunctionName("F_RIESGOS_CARGUE")
+                .withoutProcedureColumnMetaDataAccess()
                 .declareParameters(
                         new SqlOutParameter("RETURN", Types.VARCHAR),
                         new SqlParameter("P_CONT_NUMERO", Types.VARCHAR),
                         new SqlParameter("P_RIESGO_CODIGO", Types.VARCHAR),
                         new SqlParameter("P_POSICION", Types.NUMERIC));
         Map<String, Object> result = jdbcCall.execute(contNumero, riesgoCodigo, posicion);
+        return (String) result.get("RETURN");
+    }
+
+    /**
+     * Full F_RIESGOS_CARGUE with all 8 parameters as defined in the Oracle function.
+     */
+    public String getRiesgosCargueCompleto(String ramoCodigo, String productoCodigo, String riesgoCodigo,
+                                            Integer codigoCampo, Integer tipContrato, String contNumero,
+                                            java.util.Date fechaInicioVigencia, Long pecoNumeroOrden) {
+        SimpleJdbcCall jdbcCall = new SimpleJdbcCall(jdbcTemplate)
+                .withSchemaName("NASIST")
+                .withFunctionName("F_RIESGOS_CARGUE")
+                .withoutProcedureColumnMetaDataAccess()
+                .declareParameters(
+                        new SqlOutParameter("RETURN", Types.VARCHAR),
+                        new SqlParameter("P_RAMO_CODIGO", Types.VARCHAR),
+                        new SqlParameter("P_PRODUCTO_CODIGO", Types.VARCHAR),
+                        new SqlParameter("P_RIESGO_CODIGO", Types.VARCHAR),
+                        new SqlParameter("P_CODIGO_CAMPO", Types.NUMERIC),
+                        new SqlParameter("P_CONT_TIPO_CONTRATO", Types.NUMERIC),
+                        new SqlParameter("P_CONT_NUMERO_CONTRATO", Types.VARCHAR),
+                        new SqlParameter("P_CONT_FECHA_INICIO_VIGENCIA", Types.DATE),
+                        new SqlParameter("P_PECO_NUMERO_ORDEN", Types.NUMERIC));
+        Map<String, Object> result = jdbcCall.execute(ramoCodigo, productoCodigo, riesgoCodigo,
+                codigoCampo, tipContrato, contNumero, fechaInicioVigencia, pecoNumeroOrden);
         return (String) result.get("RETURN");
     }
 
@@ -539,6 +565,33 @@ public class StoredProcedureRepository {
         return (String) result.get("RETURN");
     }
 
+    // ========== GENERIC DESCRIPTOR ==========
+
+    /**
+     * Generic descriptor resolver that routes to the appropriate PKG_DESCRIPTORES function
+     * based on the tipo parameter.
+     *
+     * @param tipo   one of RAMO, PRODUCTO, CAUSA, ENTIDAD, CARACTERISTICAS
+     * @param codigo the numeric code to resolve
+     * @return the descriptor string, or null if not found
+     */
+    public String getDescriptor(String tipo, String codigo) {
+        if (tipo == null || codigo == null) {
+            return null;
+        }
+        return switch (tipo.toUpperCase()) {
+            case "RAMO" -> getDescriptorRamo(Integer.valueOf(codigo));
+            case "PRODUCTO" -> getDescriptorProducto(0, Integer.valueOf(codigo));
+            case "CAUSA" -> getDescriptorCausa(0, 0, Long.valueOf(codigo));
+            case "ENTIDAD" -> getDescriptorEntidad(Long.valueOf(codigo));
+            case "CARACTERISTICAS" -> getDescriptorCaracteristicas(Integer.valueOf(codigo));
+            default -> {
+                log.warn("Tipo de descriptor no soportado: {}", tipo);
+                yield null;
+            }
+        };
+    }
+
     // ========== HELPER METHODS ==========
 
     private String callStringFunction(String packageName, String functionName) {
@@ -546,6 +599,7 @@ public class StoredProcedureRepository {
                 .withSchemaName("NASIST")
                 .withCatalogName(packageName)
                 .withFunctionName(functionName)
+                .withoutProcedureColumnMetaDataAccess()
                 .declareParameters(new SqlOutParameter("RETURN", Types.VARCHAR));
         Map<String, Object> result = jdbcCall.execute();
         return (String) result.get("RETURN");
@@ -557,6 +611,7 @@ public class StoredProcedureRepository {
                 .withSchemaName("NASIST")
                 .withCatalogName(packageName)
                 .withFunctionName(functionName)
+                .withoutProcedureColumnMetaDataAccess()
                 .declareParameters(
                         new SqlOutParameter("RETURN", Types.VARCHAR),
                         new SqlParameter(paramName, sqlType));

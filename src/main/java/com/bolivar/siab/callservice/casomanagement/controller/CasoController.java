@@ -1,11 +1,15 @@
 package com.bolivar.siab.callservice.casomanagement.controller;
 
 import com.bolivar.siab.callservice.casomanagement.dto.*;
+import com.bolivar.siab.callservice.casomanagement.models.LlamadaExcepcionEntity;
+import com.bolivar.siab.callservice.casomanagement.repository.LlamadaExcepcionRepository;
 import com.bolivar.siab.callservice.casomanagement.services.CasoService;
 import com.bolivar.siab.callservice.caracteristicas.models.CausaEntity;
 import com.bolivar.siab.callservice.caracteristicas.repository.CausaRepository;
 import com.bolivar.siab.callservice.commons.dto.ApiResponse;
 import com.bolivar.siab.callservice.configuracion.dto.DominioDTO;
+import com.bolivar.siab.callservice.serviciomanagement.models.CartaEntity;
+import com.bolivar.siab.callservice.serviciomanagement.repository.CartaRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -16,6 +20,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.stream.Collectors;
 
 @RestController
@@ -26,6 +31,8 @@ public class CasoController {
 
     private final CasoService casoService;
     private final CausaRepository causaRepository;
+    private final LlamadaExcepcionRepository llamadaExcepcionRepository;
+    private final CartaRepository cartaRepository;
 
     @PostMapping
     @Operation(summary = "Create a new case")
@@ -126,5 +133,52 @@ public class CasoController {
     @Operation(summary = "LOV: List reasons for reclassification")
     public ResponseEntity<ApiResponse<java.util.List<com.bolivar.siab.callservice.configuracion.dto.DominioDTO>>> lovRazones() {
         return ResponseEntity.ok(ApiResponse.ok(java.util.List.of()));
+    }
+
+    // === CASE SUB-RESOURCE ENDPOINTS ===
+
+    @GetMapping("/{numero}/excepciones")
+    @Operation(summary = "List exceptions for a case")
+    public ResponseEntity<ApiResponse<List<ExcepcionDTO>>> getExcepciones(@PathVariable Long numero) {
+        List<LlamadaExcepcionEntity> entities = llamadaExcepcionRepository.findByNumeroLlamada(numero);
+        List<ExcepcionDTO> dtos = entities.stream().map(e -> ExcepcionDTO.builder()
+                .id(null)
+                .numeroLlamada(e.getNumeroLlamada())
+                .numeroSiniestro(e.getNumeroSiniestro() != null ? String.valueOf(e.getNumeroSiniestro()) : null)
+                .codigoRamo(e.getCodigoRamo() != null ? Integer.parseInt(e.getCodigoRamo()) : null)
+                .codigoProducto(e.getCodigoProducto() != null ? Integer.parseInt(e.getCodigoProducto()) : null)
+                .codigoPolitica(e.getCodigoPolitica())
+                .codigoDefinicion(e.getCodigoDefinicion())
+                .codigoRol(e.getCodigoRol())
+                .autorizador(e.getAutorizador())
+                .estadoAutorizado(e.getEstadoAutorizado())
+                .observacionAutorizador(e.getObservacionAutorizador())
+                .fechaAutorizacion(e.getFechaAutorizacion())
+                .build()).collect(Collectors.toList());
+        return ResponseEntity.ok(ApiResponse.ok(dtos));
+    }
+
+    @GetMapping("/{numero}/cartas")
+    @Operation(summary = "List letters for a case")
+    public ResponseEntity<ApiResponse<List<CartaDTO>>> getCartas(@PathVariable Long numero) {
+        List<CartaEntity> entities = cartaRepository.findByLlamadaNumero(numero);
+        List<CartaDTO> dtos = entities.stream().map(e -> CartaDTO.builder()
+                .id(e.getId())
+                .llamadaNumero(e.getLlamadaNumero())
+                .numeroAutorizacion(e.getNumeroAutorizacion())
+                .tipoCarta(e.getTipoCarta())
+                .contenido(e.getContenido())
+                .destinatario(e.getDestinatario())
+                .estado(e.getEstado())
+                .fechaCreacion(e.getFechaCreacion())
+                .usuarioCreacion(e.getUsuarioCreacion())
+                .build()).collect(Collectors.toList());
+        return ResponseEntity.ok(ApiResponse.ok(dtos));
+    }
+
+    @GetMapping("/{numero}/acuerdos")
+    @Operation(summary = "List agreements for a case (placeholder)")
+    public ResponseEntity<ApiResponse<List<AcuerdoDTO>>> getAcuerdos(@PathVariable Long numero) {
+        return ResponseEntity.ok(ApiResponse.ok(List.of()));
     }
 }

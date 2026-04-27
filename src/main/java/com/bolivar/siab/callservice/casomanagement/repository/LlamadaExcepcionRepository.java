@@ -6,7 +6,7 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 @Repository
-public interface LlamadaExcepcionRepository extends JpaRepository<LlamadaExcepcionEntity, Long> {
+public interface LlamadaExcepcionRepository extends JpaRepository<LlamadaExcepcionEntity, LlamadaExcepcionEntity.LlamadaExcepcionId> {
     List<LlamadaExcepcionEntity> findByNumeroLlamada(Long numeroLlamada);
     long countByNumeroLlamada(Long numeroLlamada);
 }

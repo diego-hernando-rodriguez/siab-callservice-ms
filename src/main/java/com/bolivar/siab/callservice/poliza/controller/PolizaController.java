@@ -7,9 +7,11 @@ import com.bolivar.siab.callservice.poliza.services.PolizaService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/v1")
 @RequiredArgsConstructor
@@ -18,6 +20,8 @@ public class PolizaController {
 
     private final PolizaService polizaService;
     private final RiesgoAseguradoRepository riesgoRepository;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+    private final com.bolivar.siab.callservice.commons.repository.StoredProcedureRepository storedProcedureRepository;
 
     @GetMapping("/riesgos/buscar")
     @Operation(summary = "Search risks by value (LTRIM logic)")
@@ -122,8 +126,82 @@ public class PolizaController {
             @RequestParam String ramo2,
             @RequestParam String producto2,
             @RequestParam String valor,
-            @RequestParam(required = false, defaultValue = "1") Long pais) {
-        return ResponseEntity.ok(ApiResponse.ok(polizaService.getRiesgosCedula(ramo, producto, ramo2, producto2, valor, pais)));
+            @RequestParam(required = false, defaultValue = "1") Long pais,
+            @RequestParam(required = false, defaultValue = "S") String existente) {
+        return ResponseEntity.ok(ApiResponse.ok(polizaService.getRiesgosCedula(ramo, producto, ramo2, producto2, valor, pais, existente)));
+    }
+
+    @GetMapping("/riesgos/contrato-comodin")
+    @Operation(summary = "Get wildcard ASIS contract for inexistent risks")
+    public ResponseEntity<ApiResponse<java.util.Map<String, Object>>> getContratoComodin(
+            @RequestParam String ramo, @RequestParam String producto) {
+        java.util.List<java.util.Map<String, Object>> rows = jdbcTemplate.queryForList(
+                "SELECT DISTINCT r.cont_numero_contrato AS POLIZA, r.riesgo_codigo AS RIESGO, " +
+                "r.ramo_codigo AS RAMO_CODIGO, r.producto_codigo AS PRODUCTO_CODIGO, " +
+                "r.peco_numero_orden AS NUM_ORDEN, pc.tipo_contrato AS TIP_CONTRATO, " +
+                "pc.usu_tipo_documento AS TIPO_DOCUMENTO, pc.usu_numero_documento AS NUMERO_DOCUMENTO, " +
+                "u.nombres_apellidos AS NOMBRES_APELLIDOS, r.riesgo_codigo AS RIESGO2, " +
+                "'INEXISTENTE' AS VALOR_RIESGO_ORI, 'INEXISTENTE' AS PRODUCTO, 'VG' AS ESTADO " +
+                "FROM NASIST.RIESGOS_ASEGURADOS r " +
+                "JOIN NASIST.PERSONAS_CONTRATO pc ON pc.tipo_contrato = r.cont_tipo_contrato " +
+                "AND pc.cont_numero_contrato = r.cont_numero_contrato " +
+                "AND pc.cont_fecha_inicio_vigencia = r.cont_fecha_inicio_vigencia " +
+                "AND pc.numero_orden = r.peco_numero_orden " +
+                "JOIN NASIST.USUARIOS u ON u.tipo_documento = pc.usu_tipo_documento " +
+                "AND u.numero_documento = pc.usu_numero_documento " +
+                "WHERE r.cont_numero_contrato LIKE 'ASIS%' AND r.ramo_codigo = ? " +
+                "AND r.producto_codigo = ? AND r.peco_numero_orden = 1 AND ROWNUM = 1",
+                ramo, producto);
+        if (rows.isEmpty()) {
+            return ResponseEntity.ok(ApiResponse.ok(java.util.Map.of()));
+        }
+        return ResponseEntity.ok(ApiResponse.ok(rows.get(0)));
+    }
+
+    @GetMapping("/riesgos/cargue")
+    @Operation(summary = "Get tipo asistencia and opcion cobertura via F_RIESGOS_CARGUE")
+    public ResponseEntity<ApiResponse<java.util.Map<String, String>>> getRiesgosCargue(
+            @RequestParam String ramoCodigo,
+            @RequestParam String productoCodigo,
+            @RequestParam String riesgoCodigo,
+            @RequestParam Integer tipcontCodigo,
+            @RequestParam String contNumeroContrato,
+            @RequestParam String contFechaInicioVigencia,
+            @RequestParam Long pecoNumeroOrden) {
+        java.sql.Date fecha = null;
+        try {
+            // Handle ISO formats: 2025-08-31, 2025-08-31T05:00:00.000+00:00, etc.
+            String dateStr = contFechaInicioVigencia;
+            if (dateStr.contains("T")) {
+                dateStr = dateStr.substring(0, dateStr.indexOf("T"));
+            }
+            if (dateStr.contains("/")) {
+                // dd/MM/yyyy
+                String[] parts = dateStr.split("/");
+                dateStr = parts[2] + "-" + parts[1] + "-" + parts[0];
+            }
+            fecha = java.sql.Date.valueOf(dateStr);
+        } catch (Exception e) {
+            log.warn("Error parsing date '{}': {}", contFechaInicioVigencia, e.getMessage());
+        }
+        String tipoAsistencia = null;
+        String opcionCobertura = null;
+        try {
+            tipoAsistencia = storedProcedureRepository.getRiesgosCargueCompleto(
+                    ramoCodigo, productoCodigo, riesgoCodigo, 93, tipcontCodigo, contNumeroContrato, fecha, pecoNumeroOrden);
+        } catch (Exception e) {
+            log.warn("Error getting tipoAsistencia: {}", e.getMessage());
+        }
+        try {
+            opcionCobertura = storedProcedureRepository.getRiesgosCargueCompleto(
+                    ramoCodigo, productoCodigo, riesgoCodigo, 135, tipcontCodigo, contNumeroContrato, fecha, pecoNumeroOrden);
+        } catch (Exception e) {
+            log.warn("Error getting opcionCobertura: {}", e.getMessage());
+        }
+        java.util.Map<String, String> result = new java.util.LinkedHashMap<>();
+        result.put("tipoAsistencia", tipoAsistencia);
+        result.put("opcionCobertura", opcionCobertura);
+        return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
     @GetMapping("/riesgos/lov/autos")
