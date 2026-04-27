@@ -122,11 +122,36 @@ public class PolizaServiceImpl implements PolizaService {
     public java.util.List<java.util.Map<String, Object>> getProductosConsulta(
             String ramo, String producto, Long pais, String valor, Integer codigoCampo) {
         log.info("P_PRODUCTOS_CONSULTA: ramo={}, producto={}, pais={}, valor={}, campo={}", ramo, producto, pais, valor, codigoCampo);
-        storedProcedureRepository.ejecutarProductosConsulta(ramo, producto, pais, valor, codigoCampo);
-        // Read results from T_PRODUCTOS_CONSULTA
-        java.util.List<java.util.Map<String, Object>> rows = jdbcTemplate.queryForList(
-                "SELECT EXISTE, INTERNO, COD_RAMO, RAMO, COD_PRODUCTO, PRODUCTO, INEXISTENTE FROM NASIST.T_PRODUCTOS_CONSULTA ORDER BY COD_RAMO, COD_PRODUCTO");
-        return rows;
+        // Execute procedure AND read GTT in the same connection callback to guarantee same session
+        return jdbcTemplate.execute((java.sql.Connection con) -> {
+            // 1. Call the procedure
+            try (java.sql.CallableStatement cs = con.prepareCall(
+                    "{call NASIST.P_PRODUCTOS_CONSULTA1(?, ?, ?, ?, ?)}")) {
+                cs.setString(1, ramo != null ? ramo : "0");
+                cs.setString(2, producto != null ? producto : "0");
+                if (pais != null) cs.setLong(3, pais); else cs.setNull(3, java.sql.Types.NUMERIC);
+                cs.setString(4, valor);
+                if (codigoCampo != null) cs.setInt(5, codigoCampo); else cs.setNull(5, java.sql.Types.NUMERIC);
+                cs.execute();
+            }
+            // 2. Read results from GTT in the same connection
+            java.util.List<java.util.Map<String, Object>> rows = new java.util.ArrayList<>();
+            try (java.sql.Statement stmt = con.createStatement();
+                 java.sql.ResultSet rs = stmt.executeQuery(
+                     "SELECT EXISTE, INTERNO, COD_RAMO, RAMO, COD_PRODUCTO, PRODUCTO, INEXISTENTE FROM NASIST.T_PRODUCTOS_CONSULTA")) {
+                java.sql.ResultSetMetaData meta = rs.getMetaData();
+                int colCount = meta.getColumnCount();
+                while (rs.next()) {
+                    java.util.Map<String, Object> row = new java.util.LinkedHashMap<>();
+                    for (int i = 1; i <= colCount; i++) {
+                        row.put(meta.getColumnName(i), rs.getObject(i));
+                    }
+                    rows.add(row);
+                }
+            }
+            log.info("P_PRODUCTOS_CONSULTA returned {} rows", rows.size());
+            return rows;
+        });
     }
 
     /**
@@ -136,15 +161,40 @@ public class PolizaServiceImpl implements PolizaService {
     @Override
     @Transactional
     public java.util.List<java.util.Map<String, Object>> getRiesgosCedula(
-            String ramo, String producto, String ramo2, String producto2, String valor, Long pais) {
-        log.info("P_RIESGOS_CEDULA: ramo={}, producto={}, ramo2={}, producto2={}, valor={}, pais={}", ramo, producto, ramo2, producto2, valor, pais);
-        storedProcedureRepository.ejecutarRiesgosCedula(ramo, producto, ramo2, producto2, "N", valor, pais);
-        // Read results from T_RIESGOS_CEDULA
-        java.util.List<java.util.Map<String, Object>> rows = jdbcTemplate.queryForList(
-                "SELECT POLIZA, INICIO, FIN, NUM_ORDEN, TIP_CONTRATO, RIESGO, RAMO_CODIGO, PRODUCTO_CODIGO, " +
-                "NUMERO_DOCUMENTO, TIPO_DOCUMENTO, COD_CAMPO, RIESGO2, VALOR_RIESGO_ORI, PRODUCTO, ESTADO, " +
-                "VALOR_RIESGO, DIRECCION, TELEFONO, NOMBRES_APELLIDOS, PREFERENCIAL " +
-                "FROM NASIST.T_RIESGOS_CEDULA ORDER BY INICIO DESC, ESTADO DESC");
-        return rows;
+            String ramo, String producto, String ramo2, String producto2, String valor, Long pais, String existente) {
+        log.info("P_RIESGOS_CEDULA: ramo={}, producto={}, ramo2={}, producto2={}, valor={}, pais={}, existente={}", ramo, producto, ramo2, producto2, valor, pais, existente);
+        // Execute procedure AND read GTT in the same connection callback
+        return jdbcTemplate.execute((java.sql.Connection con) -> {
+            try (java.sql.CallableStatement cs = con.prepareCall(
+                    "{call NASIST.P_RIESGOS_CEDULA(?, ?, ?, ?, ?, ?, ?)}")) {
+                if (ramo != null && !ramo.isEmpty()) cs.setString(1, ramo); else cs.setNull(1, java.sql.Types.VARCHAR);
+                if (producto != null && !producto.isEmpty()) cs.setString(2, producto); else cs.setNull(2, java.sql.Types.VARCHAR);
+                cs.setString(3, ramo2);
+                cs.setString(4, producto2);
+                cs.setString(5, existente != null ? existente : "N");
+                cs.setString(6, valor);
+                if (pais != null) cs.setLong(7, pais); else cs.setNull(7, java.sql.Types.NUMERIC);
+                cs.execute();
+            }
+            java.util.List<java.util.Map<String, Object>> rows = new java.util.ArrayList<>();
+            try (java.sql.Statement stmt = con.createStatement();
+                 java.sql.ResultSet rs = stmt.executeQuery(
+                     "SELECT POLIZA, INICIO, FIN, NUM_ORDEN, TIP_CONTRATO, RIESGO, RAMO_CODIGO, PRODUCTO_CODIGO, " +
+                     "NUMERO_DOCUMENTO, TIPO_DOCUMENTO, COD_CAMPO, RIESGO2, VALOR_RIESGO_ORI, PRODUCTO, ESTADO, " +
+                     "VALOR_RIESGO, DIRECCION, TELEFONO, NOMBRES_APELLIDOS, PREFERENCIAL " +
+                     "FROM NASIST.T_RIESGOS_CEDULA ORDER BY INICIO DESC, ESTADO DESC")) {
+                java.sql.ResultSetMetaData meta = rs.getMetaData();
+                int colCount = meta.getColumnCount();
+                while (rs.next()) {
+                    java.util.Map<String, Object> row = new java.util.LinkedHashMap<>();
+                    for (int i = 1; i <= colCount; i++) {
+                        row.put(meta.getColumnName(i), rs.getObject(i));
+                    }
+                    rows.add(row);
+                }
+            }
+            log.info("P_RIESGOS_CEDULA returned {} rows", rows.size());
+            return rows;
+        });
     }
 }

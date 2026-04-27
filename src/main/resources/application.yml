@@ -18,6 +18,7 @@ spring:
       pool-name: CallServiceHikariPool
       max-lifetime: 1800000
       connection-timeout: 30000
+      auto-commit: false
   jpa:
     database-platform: org.hibernate.dialect.OracleDialect
     hibernate:
@@ -51,6 +52,8 @@ external-services:
   google-maps:
     api-key: ${GOOGLE_MAPS_API_KEY:AIzaSyD_TCH9SGvofikqcNuDcsaO4jexSh-Qj4k}
     geocoding-url: ${GOOGLE_GEOCODING_URL:https://maps.googleapis.com/maps/api/geocode/json}
+  geocoding:
+    base-url: ${GEOCODING_URL:http://cls-fee-management-dev-nlb-4ea8dc72491d961a.elb.us-east-1.amazonaws.com/data_source/api/v1/geocoding/forward}
   notifications:
     email-enabled: ${EMAIL_ENABLED:false}
     sms-enabled: ${SMS_ENABLED:false}

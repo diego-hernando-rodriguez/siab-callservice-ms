@@ -57,8 +57,19 @@ public class StoredProcedureRepository {
         return (String) result.get("RETURN");
     }
 
-    public String getDescriptorCausa(Long causaCodigo) {
-        return callStringFunctionWithParam("PKG_DESCRIPTORES", "F_CAUSA", "P_CAUSA_CODIGO", causaCodigo, Types.NUMERIC);
+    public String getDescriptorCausa(Integer ramoCodigo, Integer productoCodigo, Long causaCodigo) {
+        SimpleJdbcCall jdbcCall = new SimpleJdbcCall(jdbcTemplate)
+                .withSchemaName("NASIST")
+                .withCatalogName("PKG_DESCRIPTORES")
+                .withFunctionName("F_CAUSA")
+                .withoutProcedureColumnMetaDataAccess()
+                .declareParameters(
+                        new SqlOutParameter("RETURN", Types.VARCHAR),
+                        new SqlParameter("P_RAMO_CODIGO", Types.NUMERIC),
+                        new SqlParameter("P_PRODUCTO_CODIGO", Types.NUMERIC),
+                        new SqlParameter("P_CAUSA_CODIGO", Types.NUMERIC));
+        Map<String, Object> result = jdbcCall.execute(ramoCodigo, productoCodigo, causaCodigo);
+        return (String) result.get("RETURN");
     }
 
     public String getDescriptorCaracteristicas(Integer codigoCampo) {
@@ -458,12 +469,38 @@ public class StoredProcedureRepository {
         SimpleJdbcCall jdbcCall = new SimpleJdbcCall(jdbcTemplate)
                 .withSchemaName("NASIST")
                 .withFunctionName("F_RIESGOS_CARGUE")
+                .withoutProcedureColumnMetaDataAccess()
                 .declareParameters(
                         new SqlOutParameter("RETURN", Types.VARCHAR),
                         new SqlParameter("P_CONT_NUMERO", Types.VARCHAR),
                         new SqlParameter("P_RIESGO_CODIGO", Types.VARCHAR),
                         new SqlParameter("P_POSICION", Types.NUMERIC));
         Map<String, Object> result = jdbcCall.execute(contNumero, riesgoCodigo, posicion);
+        return (String) result.get("RETURN");
+    }
+
+    /**
+     * Full F_RIESGOS_CARGUE with all 8 parameters as defined in the Oracle function.
+     */
+    public String getRiesgosCargueCompleto(String ramoCodigo, String productoCodigo, String riesgoCodigo,
+                                            Integer codigoCampo, Integer tipContrato, String contNumero,
+                                            java.util.Date fechaInicioVigencia, Long pecoNumeroOrden) {
+        SimpleJdbcCall jdbcCall = new SimpleJdbcCall(jdbcTemplate)
+                .withSchemaName("NASIST")
+                .withFunctionName("F_RIESGOS_CARGUE")
+                .withoutProcedureColumnMetaDataAccess()
+                .declareParameters(
+                        new SqlOutParameter("RETURN", Types.VARCHAR),
+                        new SqlParameter("P_RAMO_CODIGO", Types.VARCHAR),
+                        new SqlParameter("P_PRODUCTO_CODIGO", Types.VARCHAR),
+                        new SqlParameter("P_RIESGO_CODIGO", Types.VARCHAR),
+                        new SqlParameter("P_CODIGO_CAMPO", Types.NUMERIC),
+                        new SqlParameter("P_CONT_TIPO_CONTRATO", Types.NUMERIC),
+                        new SqlParameter("P_CONT_NUMERO_CONTRATO", Types.VARCHAR),
+                        new SqlParameter("P_CONT_FECHA_INICIO_VIGENCIA", Types.DATE),
+                        new SqlParameter("P_PECO_NUMERO_ORDEN", Types.NUMERIC));
+        Map<String, Object> result = jdbcCall.execute(ramoCodigo, productoCodigo, riesgoCodigo,
+                codigoCampo, tipContrato, contNumero, fechaInicioVigencia, pecoNumeroOrden);
         return (String) result.get("RETURN");
     }
 
@@ -499,7 +536,7 @@ public class StoredProcedureRepository {
         return switch (tipo.toUpperCase()) {
             case "RAMO" -> getDescriptorRamo(Integer.valueOf(codigo));
             case "PRODUCTO" -> getDescriptorProducto(0, Integer.valueOf(codigo));
-            case "CAUSA" -> getDescriptorCausa(Long.valueOf(codigo));
+            case "CAUSA" -> getDescriptorCausa(0, 0, Long.valueOf(codigo));
             case "ENTIDAD" -> getDescriptorEntidad(Long.valueOf(codigo));
             case "CARACTERISTICAS" -> getDescriptorCaracteristicas(Integer.valueOf(codigo));
             default -> {

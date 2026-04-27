@@ -2,55 +2,51 @@ package com.bolivar.siab.callservice.casomanagement.models;
 
 import jakarta.persistence.*;
 import lombok.*;
+import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
  * JPA Entity for LLAMADA_EXCEPCION table in NASIST schema.
- * Exception records for cases requiring special authorization.
+ * Table has no single PK — uses composite key (NUMERO_LLAMADA, CODIGO_POLITICA, CODIGO_DEFINICION).
  */
 @Entity
 @Table(name = "LLAMADA_EXCEPCION", schema = "NASIST")
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@IdClass(LlamadaExcepcionEntity.LlamadaExcepcionId.class)
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class LlamadaExcepcionEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "ID", nullable = false)
-    private Long id;
-
     @Column(name = "NUMERO_LLAMADA")
     private Long numeroLlamada;
 
-    @Column(name = "NUMERO_SINIESTRO", length = 30)
-    private String numeroSiniestro;
-
-    @Column(name = "CODIGO_RAMO")
-    private Integer codigoRamo;
-
-    @Column(name = "CODIGO_PRODUCTO")
-    private Integer codigoProducto;
-
+    @Id
     @Column(name = "CODIGO_POLITICA")
     private Integer codigoPolitica;
 
+    @Id
     @Column(name = "CODIGO_DEFINICION")
     private Integer codigoDefinicion;
+
+    @Column(name = "NUMERO_SINIESTRO")
+    private Long numeroSiniestro;
+
+    @Column(name = "CODIGO_RAMO", length = 4)
+    private String codigoRamo;
+
+    @Column(name = "CODIGO_PRODUCTO", length = 5)
+    private String codigoProducto;
 
     @Column(name = "CODIGO_ROL")
     private Integer codigoRol;
 
-    @Column(name = "AUTORIZADOR", length = 50)
-    private String autorizador;
-
     @Column(name = "TIPO_IDENTIFICACION", length = 5)
     private String tipoIdentificacion;
 
-    @Column(name = "NUMERO_IDENTIFICACION", length = 30)
-    private String numeroIdentificacion;
+    @Column(name = "NUMERO_IDENTIFICACION")
+    private Long numeroIdentificacion;
+
+    @Column(name = "AUTORIZADOR", length = 50)
+    private String autorizador;
 
     @Column(name = "ESTADO_AUTORIZADO", length = 5)
     private String estadoAutorizado;
@@ -67,21 +63,10 @@ public class LlamadaExcepcionEntity {
     @Column(name = "USUARIO_CREA", length = 50)
     private String usuarioCrea;
 
-    @Column(name = "GUARDAR", length = 1)
-    private String guardar;
-
-    @Transient
-    private String descRamo;
-    @Transient
-    private String descProducto;
-    @Transient
-    private String descPolitica;
-    @Transient
-    private String descDefinicion;
-    @Transient
-    private String descRol;
-    @Transient
-    private String descCargoRol;
-    @Transient
-    private String descAplicaExcep;
+    @Data @NoArgsConstructor @AllArgsConstructor
+    public static class LlamadaExcepcionId implements Serializable {
+        private Long numeroLlamada;
+        private Integer codigoPolitica;
+        private Integer codigoDefinicion;
+    }
 }

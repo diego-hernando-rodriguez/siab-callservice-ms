@@ -6,20 +6,34 @@ import com.bolivar.siab.callservice.geographic.repository.LocalizacionGeografica
 import com.bolivar.siab.callservice.geographic.services.GeographicService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class GeographicServiceImpl implements GeographicService {
 
     private final LocalizacionGeograficaRepository localizacionRepository;
     private final StoredProcedureRepository storedProcedureRepository;
+    private final RestTemplate restTemplate;
+
+    @Value("${external-services.geocoding.base-url:http://cls-fee-management-dev-nlb-4ea8dc72491d961a.elb.us-east-1.amazonaws.com/data_source/api/v1/geocoding/forward}")
+    private String geocodingUrl;
+
+    public GeographicServiceImpl(LocalizacionGeograficaRepository localizacionRepository,
+                                  StoredProcedureRepository storedProcedureRepository) {
+        this.localizacionRepository = localizacionRepository;
+        this.storedProcedureRepository = storedProcedureRepository;
+        this.restTemplate = new RestTemplate();
+    }
 
     /**
      * LLAMADA_LOCGE_CODIG_LOV5: Cities with department filtered by country.
@@ -34,6 +48,7 @@ public class GeographicServiceImpl implements GeographicService {
                 .nombre((String) row[1])
                 .departamento((String) row[2])
                 .tlgCodigo(((Number) row[3]).intValue())
+                .pais(row.length > 4 && row[4] != null ? String.valueOf(row[4]) : String.valueOf(pais))
                 .build()
         ).collect(Collectors.toList());
     }
@@ -69,70 +84,65 @@ public class GeographicServiceImpl implements GeographicService {
     public GeocodificacionResponseDTO geocodeAddress(GeocodificacionRequestDTO request) {
         log.info("Geocoding address: {} for city: {}", request.getDireccion(), request.getLocgeCodigo());
 
-        // Step 1: FU_DIRECCION_LIMPIA
-        String direccionLimpia;
-        try {
-            direccionLimpia = storedProcedureRepository.getDireccionLimpia(request.getDireccion());
-        } catch (Exception e) {
-            log.warn("FU_DIRECCION_LIMPIA error: {}", e.getMessage());
-            direccionLimpia = request.getDireccion();
-        }
-
-        if (direccionLimpia == null || direccionLimpia.isEmpty()) {
-            return GeocodificacionResponseDTO.builder()
-                    .direccionFormateada(request.getDireccion())
-                    .encontrado(false)
-                    .build();
-        }
-
-        // Step 2: PR_BUSQUEDA_DIRECCION_INTEGRA
-        try {
-            storedProcedureRepository.busquedaDireccionIntegra(
-                    request.getLocgeCodigo(), direccionLimpia, request.getUsuario());
-        } catch (Exception e) {
-            log.warn("PR_BUSQUEDA_DIRECCION_INTEGRA error: {}", e.getMessage());
-        }
-
-        // Step 3: FU_DIRECCION_UNICA(1) = address, FU_DIRECCION_UNICA(2) = city
-        String direccionUnica = null;
-        String ciudadUnica = null;
-        try {
-            direccionUnica = storedProcedureRepository.getDireccionUnica(1);
-            ciudadUnica = storedProcedureRepository.getDireccionUnica(2);
-        } catch (Exception e) {
-            log.warn("FU_DIRECCION_UNICA error: {}", e.getMessage());
-        }
-
-        // Step 4: Get city name for fallback
+        // Get city and department names directly from LOCALIZACIONES_GEOGRAFICAS
         String nombreCiudad = null;
+        String nombreDepartamento = null;
         try {
-            nombreCiudad = storedProcedureRepository.getNombreCiudad(request.getLocgeCodigo());
-        } catch (Exception e) {
-            log.warn("FU_NOMBRE_CIUDAD error: {}", e.getMessage());
-        }
-
-        // Step 5: If INVALIDA, retry with city name
-        if (direccionUnica != null && "INVALIDA".equalsIgnoreCase(direccionUnica.trim())) {
-            log.info("Address INVALIDA, retrying with city name: {}", nombreCiudad);
-            if (nombreCiudad != null) {
-                try {
-                    storedProcedureRepository.busquedaDireccionIntegra(
-                            request.getLocgeCodigo(), nombreCiudad, request.getUsuario());
-                    direccionUnica = storedProcedureRepository.getDireccionUnica(1);
-                } catch (Exception e) {
-                    log.warn("Retry with city name error: {}", e.getMessage());
-                }
+            List<Object[]> rows = localizacionRepository.findCityAndDepartmentByCodigo(request.getLocgeCodigo());
+            if (!rows.isEmpty()) {
+                nombreCiudad = rows.get(0)[0] != null ? rows.get(0)[0].toString() : null;
+                nombreDepartamento = rows.get(0)[1] != null ? rows.get(0)[1].toString() : null;
             }
+        } catch (Exception e) {
+            log.warn("Error getting city/department: {}", e.getMessage());
         }
 
-        boolean encontrado = direccionUnica != null
-                && !direccionUnica.isEmpty()
-                && !"INVALIDA".equalsIgnoreCase(direccionUnica.trim());
+        // Call external geocoding service        // Call external geocoding service
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            Map<String, String> body = Map.of(
+                    "address", request.getDireccion(),
+                    "city", nombreCiudad != null ? nombreCiudad : "",
+                    "department", nombreDepartamento != null ? nombreDepartamento : ""
+            );
+
+            HttpEntity<Map<String, String>> httpEntity = new HttpEntity<>(body, headers);
+            ResponseEntity<Map> response = restTemplate.exchange(geocodingUrl, HttpMethod.POST, httpEntity, Map.class);
+
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                Map<String, Object> respBody = response.getBody();
+
+                // Parse coordinates object
+                String lat = null;
+                String lng = null;
+                if (respBody.get("coordinates") instanceof Map) {
+                    Map<String, Object> coords = (Map<String, Object>) respBody.get("coordinates");
+                    lat = coords.get("latitude") != null ? String.valueOf(coords.get("latitude")) : null;
+                    lng = coords.get("longitude") != null ? String.valueOf(coords.get("longitude")) : null;
+                }
+
+                String formattedAddress = respBody.get("formattedAddress") != null
+                        ? String.valueOf(respBody.get("formattedAddress")) : null;
+
+                boolean found = lat != null && lng != null;
+                return GeocodificacionResponseDTO.builder()
+                        .latitud(lat)
+                        .longitud(lng)
+                        .direccionFormateada(found ? (formattedAddress != null ? formattedAddress : request.getDireccion()) : request.getDireccion())
+                        .ciudad(nombreCiudad)
+                        .encontrado(found)
+                        .build();
+            }
+        } catch (Exception e) {
+            log.error("Error calling geocoding service: {}", e.getMessage());
+        }
 
         return GeocodificacionResponseDTO.builder()
-                .direccionFormateada(encontrado ? direccionUnica : request.getDireccion())
-                .ciudad(ciudadUnica != null ? ciudadUnica : nombreCiudad)
-                .encontrado(encontrado)
+                .direccionFormateada(request.getDireccion())
+                .ciudad(nombreCiudad)
+                .encontrado(false)
                 .build();
     }
 

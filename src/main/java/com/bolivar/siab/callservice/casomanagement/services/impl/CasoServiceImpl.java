@@ -11,6 +11,7 @@ import com.bolivar.siab.callservice.casomanagement.services.CasoService;
 import com.bolivar.siab.callservice.caracteristicas.models.CaracteristicaCausaLlamadaEntity;
 import com.bolivar.siab.callservice.caracteristicas.repository.CaracteristicaCausaLlamadaRepository;
 import com.bolivar.siab.callservice.commons.repository.StoredProcedureRepository;
+import com.bolivar.siab.callservice.geographic.repository.LocalizacionGeograficaRepository;
 import com.bolivar.siab.callservice.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +37,7 @@ public class CasoServiceImpl implements CasoService {
     private final LogCambioCausaRepository logCambioCausaRepository;
     private final CaracteristicaCausaLlamadaRepository caracteristicaRepository;
     private final StoredProcedureRepository storedProcedureRepository;
+    private final LocalizacionGeograficaRepository localizacionRepository;
     private final CasoMapper casoMapper;
 
     @Override
@@ -219,8 +221,23 @@ public class CasoServiceImpl implements CasoService {
                 Integer ramo = entity.getRamoCodigo() != null ? Integer.parseInt(entity.getRamoCodigo()) : 0;
                 response.setDspProducto(storedProcedureRepository.getDescriptorProducto(ramo, Integer.parseInt(entity.getProductoCodigo())));
             }
+            if (entity.getCausaCodigo() != null) {
+                Integer ramoInt = entity.getRamoCodigo() != null ? Integer.parseInt(entity.getRamoCodigo()) : 0;
+                Integer prodInt = entity.getProductoCodigo() != null ? Integer.parseInt(entity.getProductoCodigo()) : 0;
+                response.setDspDescripcion2(storedProcedureRepository.getDescriptorCausa(ramoInt, prodInt, entity.getCausaCodigo()));
+            }
             if (entity.getEstadoLlamada() != null) {
-                response.setDspEstadoLlamada(entity.getEstadoLlamada());
+                response.setDspEstadoLlamada(storedProcedureRepository.getValDominio("ESTADO_LLAMADA", entity.getEstadoLlamada()));
+            }
+            // City name lookup from LOCALIZACIONES_GEOGRAFICAS
+            if (entity.getLocgeCodigo() != null) {
+                response.setTlgCodigo(entity.getTlgCodigo());
+                List<Object[]> cityData = localizacionRepository.findCityAndDepartmentByCodigo(entity.getLocgeCodigo());
+                if (!cityData.isEmpty()) {
+                    Object[] row = cityData.get(0);
+                    response.setDspCiudad(row[0] != null ? row[0].toString() : null);
+                    response.setDspDpto(row[1] != null ? row[1].toString() : null);
+                }
             }
             // Format hora
             if (entity.getHoraLlamada() != null) {
@@ -228,6 +245,10 @@ public class CasoServiceImpl implements CasoService {
                 int m = entity.getHoraLlamada() % 60;
                 response.setHoraLlamadaFormatted(String.format("%02d:%02d", h, m));
             }
+            // Envio Click/SF
+            String envioClick = "S".equals(entity.getMcaEnvioClicksoftware()) ? "SI" : "NO";
+            String envioSf = "S".equals(entity.getMcaEnvioSalesforce()) ? "SI" : "NO";
+            response.setDspEnviadoCasoClick(envioClick + " / " + envioSf);
             // Exception count
             long exceptionCount = llamadaExcepcionRepository.countByNumeroLlamada(entity.getNumero());
             response.setExcepciones((int) exceptionCount);

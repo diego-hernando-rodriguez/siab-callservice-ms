@@ -142,11 +142,11 @@ public class CasoController {
     public ResponseEntity<ApiResponse<List<ExcepcionDTO>>> getExcepciones(@PathVariable Long numero) {
         List<LlamadaExcepcionEntity> entities = llamadaExcepcionRepository.findByNumeroLlamada(numero);
         List<ExcepcionDTO> dtos = entities.stream().map(e -> ExcepcionDTO.builder()
-                .id(e.getId())
+                .id(null)
                 .numeroLlamada(e.getNumeroLlamada())
-                .numeroSiniestro(e.getNumeroSiniestro())
-                .codigoRamo(e.getCodigoRamo())
-                .codigoProducto(e.getCodigoProducto())
+                .numeroSiniestro(e.getNumeroSiniestro() != null ? String.valueOf(e.getNumeroSiniestro()) : null)
+                .codigoRamo(e.getCodigoRamo() != null ? Integer.parseInt(e.getCodigoRamo()) : null)
+                .codigoProducto(e.getCodigoProducto() != null ? Integer.parseInt(e.getCodigoProducto()) : null)
                 .codigoPolitica(e.getCodigoPolitica())
                 .codigoDefinicion(e.getCodigoDefinicion())
                 .codigoRol(e.getCodigoRol())
