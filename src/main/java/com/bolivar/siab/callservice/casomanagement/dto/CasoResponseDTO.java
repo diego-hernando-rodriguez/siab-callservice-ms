@@ -14,18 +14,19 @@ public class CasoResponseDTO {
     private Long causaCodigo;
     private String direccion;
     private String observacionesLar;
-    private String numeroSiniestro;
+    private Long numeroSiniestro;
     private String mcaEnvioClicksoftware;
     private String mcaEnvioSalesforce;
     private BigDecimal valorAtencion;
     private LocalDateTime fechaLlamada;
-    private String horaLlamada;
+    private Integer horaLlamada;
+    private String horaLlamadaFormatted;
     private String pais;
     private String usuNumeroDocumento;
     private String usuTipoDocumento;
     private Integer codigoCampo;
-    private Integer ramoCodigo;
-    private Integer productoCodigo;
+    private String ramoCodigo;
+    private String productoCodigo;
     private String estadoLlamada;
     private String estadoPoliza;
     private String direccionComplemento;
@@ -34,10 +35,16 @@ public class CasoResponseDTO {
     private String telefonoLlamada;
     private String severidad;
     private String lineaNegocio;
-    private String alertaPyp;
-    private String cobertura360;
+    private String placaRiesgo;
+    private String altoValor;
+    private String acuerdoCliente;
+    private String origen;
     private String preferencial;
-    // Descriptive fields from PKG_DESCRIPTORES
+    private LocalDate contFechaInicioVigencia;
+    private LocalDate contFechaFinVigencia;
+    private Integer tipcontCodigo;
+    private Long pecoNumeroOrden;
+    // Descriptive fields (enriched from PKG_DESCRIPTORES)
     private String dspRamo;
     private String dspProducto;
     private String dspNombre;
@@ -51,7 +58,6 @@ public class CasoResponseDTO {
     private String dspEnviadoCasoClick;
     private String dspTipoAsistencia;
     private String dspOpcionCobertura;
+    private String dspCoberturaVehiculo;
     private Integer excepciones;
-    private LocalDate fechaInicioVig;
-    private LocalDate fechaFinVig;
 }

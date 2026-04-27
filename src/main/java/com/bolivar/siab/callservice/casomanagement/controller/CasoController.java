@@ -103,17 +103,22 @@ public class CasoController {
     }
 
     @GetMapping("/lov/causas")
-    @Operation(summary = "LOV: List causes by ramo/producto")
-    public ResponseEntity<ApiResponse<java.util.List<DominioDTO>>> lovCausas(
+    @Operation(summary = "LOV: Causes by ramo/producto (LLAMADA_CAUSA_CODIG_LOV3)")
+    public ResponseEntity<ApiResponse<java.util.List<java.util.Map<String, Object>>>> lovCausas(
             @RequestParam(required = false) Integer ramo, @RequestParam(required = false) Integer producto) {
-        java.util.List<CausaEntity> causas = causaRepository.findByRamoCodigoAndProductoCodigoAndEstado(ramo, producto, "A");
-        java.util.List<DominioDTO> result = causas.stream()
-                .map(c -> DominioDTO.builder()
-                        .rvLowValue(String.valueOf(c.getCausaCodigo()))
-                        .rvMeaning(c.getDescripcion())
-                        .rvDomain("CAUSA")
-                        .build())
-                .collect(java.util.stream.Collectors.toList());
+        java.util.List<Object[]> rows = causaRepository.findCausasConProductoYRamo(
+                ramo != null ? String.valueOf(ramo) : null,
+                producto != null ? String.valueOf(producto) : null);
+        java.util.List<java.util.Map<String, Object>> result = rows.stream().map(row -> {
+            java.util.Map<String, Object> map = new java.util.LinkedHashMap<>();
+            map.put("codigo", row[0] != null ? Long.parseLong(row[0].toString()) : null);
+            map.put("descripcion", row[1] != null ? row[1].toString() : null);
+            map.put("descProducto", row[2] != null ? row[2].toString() : null);
+            map.put("ramoCodigo", row[3] != null ? row[3].toString() : null);
+            map.put("productoCodigo", row[4] != null ? row[4].toString() : null);
+            map.put("descRamo", row[5] != null ? row[5].toString() : null);
+            return map;
+        }).collect(java.util.stream.Collectors.toList());
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 

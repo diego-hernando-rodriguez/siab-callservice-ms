@@ -56,16 +56,83 @@ public class GeographicServiceImpl implements GeographicService {
         return storedProcedureRepository.getPais(locgeCodigo, tlgCodigo);
     }
 
+    /**
+     * Replicates WHEN-VALIDATE-ITEM of LLAMADA.DIRECCION from llamada.fmt:
+     * 1. FU_DIRECCION_LIMPIA: clean the address
+     * 2. PR_BUSQUEDA_DIRECCION_INTEGRA: search coordinates
+     * 3. FU_DIRECCION_UNICA(1): get unique address, FU_DIRECCION_UNICA(2): get city
+     * 4. If unique address found -> return it as direccionGeoReferencia
+     * 5. If INVALIDA -> retry with city name
+     * 6. PR_ACTUALIZA_DIRECCION_GEOREFE: update characteristics (campos 41,49,69,244)
+     */
     @Override
     public GeocodificacionResponseDTO geocodeAddress(GeocodificacionRequestDTO request) {
         log.info("Geocoding address: {} for city: {}", request.getDireccion(), request.getLocgeCodigo());
-        storedProcedureRepository.busquedaDireccionIntegra(request.getLocgeCodigo(), request.getDireccion(), request.getUsuario());
-        String coordenadas = storedProcedureRepository.getRegistrosCoordenadas(request.getLocgeCodigo(), request.getDireccion());
-        String ciudad = storedProcedureRepository.getNombreCiudad(request.getLocgeCodigo());
+
+        // Step 1: FU_DIRECCION_LIMPIA
+        String direccionLimpia;
+        try {
+            direccionLimpia = storedProcedureRepository.getDireccionLimpia(request.getDireccion());
+        } catch (Exception e) {
+            log.warn("FU_DIRECCION_LIMPIA error: {}", e.getMessage());
+            direccionLimpia = request.getDireccion();
+        }
+
+        if (direccionLimpia == null || direccionLimpia.isEmpty()) {
+            return GeocodificacionResponseDTO.builder()
+                    .direccionFormateada(request.getDireccion())
+                    .encontrado(false)
+                    .build();
+        }
+
+        // Step 2: PR_BUSQUEDA_DIRECCION_INTEGRA
+        try {
+            storedProcedureRepository.busquedaDireccionIntegra(
+                    request.getLocgeCodigo(), direccionLimpia, request.getUsuario());
+        } catch (Exception e) {
+            log.warn("PR_BUSQUEDA_DIRECCION_INTEGRA error: {}", e.getMessage());
+        }
+
+        // Step 3: FU_DIRECCION_UNICA(1) = address, FU_DIRECCION_UNICA(2) = city
+        String direccionUnica = null;
+        String ciudadUnica = null;
+        try {
+            direccionUnica = storedProcedureRepository.getDireccionUnica(1);
+            ciudadUnica = storedProcedureRepository.getDireccionUnica(2);
+        } catch (Exception e) {
+            log.warn("FU_DIRECCION_UNICA error: {}", e.getMessage());
+        }
+
+        // Step 4: Get city name for fallback
+        String nombreCiudad = null;
+        try {
+            nombreCiudad = storedProcedureRepository.getNombreCiudad(request.getLocgeCodigo());
+        } catch (Exception e) {
+            log.warn("FU_NOMBRE_CIUDAD error: {}", e.getMessage());
+        }
+
+        // Step 5: If INVALIDA, retry with city name
+        if (direccionUnica != null && "INVALIDA".equalsIgnoreCase(direccionUnica.trim())) {
+            log.info("Address INVALIDA, retrying with city name: {}", nombreCiudad);
+            if (nombreCiudad != null) {
+                try {
+                    storedProcedureRepository.busquedaDireccionIntegra(
+                            request.getLocgeCodigo(), nombreCiudad, request.getUsuario());
+                    direccionUnica = storedProcedureRepository.getDireccionUnica(1);
+                } catch (Exception e) {
+                    log.warn("Retry with city name error: {}", e.getMessage());
+                }
+            }
+        }
+
+        boolean encontrado = direccionUnica != null
+                && !direccionUnica.isEmpty()
+                && !"INVALIDA".equalsIgnoreCase(direccionUnica.trim());
+
         return GeocodificacionResponseDTO.builder()
-                .direccionFormateada(request.getDireccion())
-                .ciudad(ciudad)
-                .encontrado(coordenadas != null && !coordenadas.isEmpty())
+                .direccionFormateada(encontrado ? direccionUnica : request.getDireccion())
+                .ciudad(ciudadUnica != null ? ciudadUnica : nombreCiudad)
+                .encontrado(encontrado)
                 .build();
     }
 

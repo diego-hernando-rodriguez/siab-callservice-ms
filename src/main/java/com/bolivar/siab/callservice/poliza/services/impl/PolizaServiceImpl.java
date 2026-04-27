@@ -21,6 +21,7 @@ public class PolizaServiceImpl implements PolizaService {
     private final RiesgoAseguradoRepository riesgoRepository;
     private final PersonaContratoRepository personaContratoRepository;
     private final StoredProcedureRepository storedProcedureRepository;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
     @Override
     @Transactional(readOnly = true)
@@ -110,5 +111,40 @@ public class PolizaServiceImpl implements PolizaService {
     @Override
     public String getRiesgosCargue(String contNumero, String riesgoCodigo, Integer posicion) {
         return storedProcedureRepository.getRiesgosCargue(contNumero, riesgoCodigo, posicion);
+    }
+
+    /**
+     * KEY-NEXT-ITEM step 1: Calls P_PRODUCTOS_CONSULTA then reads T_PRODUCTOS_CONSULTA.
+     * Returns the list of available products for the given risk value.
+     */
+    @Override
+    @Transactional
+    public java.util.List<java.util.Map<String, Object>> getProductosConsulta(
+            String ramo, String producto, Long pais, String valor, Integer codigoCampo) {
+        log.info("P_PRODUCTOS_CONSULTA: ramo={}, producto={}, pais={}, valor={}, campo={}", ramo, producto, pais, valor, codigoCampo);
+        storedProcedureRepository.ejecutarProductosConsulta(ramo, producto, pais, valor, codigoCampo);
+        // Read results from T_PRODUCTOS_CONSULTA
+        java.util.List<java.util.Map<String, Object>> rows = jdbcTemplate.queryForList(
+                "SELECT EXISTE, INTERNO, COD_RAMO, RAMO, COD_PRODUCTO, PRODUCTO, INEXISTENTE FROM NASIST.T_PRODUCTOS_CONSULTA ORDER BY COD_RAMO, COD_PRODUCTO");
+        return rows;
+    }
+
+    /**
+     * KEY-NEXT-ITEM step 2: Calls P_RIESGOS_CEDULA then reads T_RIESGOS_CEDULA.
+     * Returns the list of contracts/risks for the selected product.
+     */
+    @Override
+    @Transactional
+    public java.util.List<java.util.Map<String, Object>> getRiesgosCedula(
+            String ramo, String producto, String ramo2, String producto2, String valor, Long pais) {
+        log.info("P_RIESGOS_CEDULA: ramo={}, producto={}, ramo2={}, producto2={}, valor={}, pais={}", ramo, producto, ramo2, producto2, valor, pais);
+        storedProcedureRepository.ejecutarRiesgosCedula(ramo, producto, ramo2, producto2, "N", valor, pais);
+        // Read results from T_RIESGOS_CEDULA
+        java.util.List<java.util.Map<String, Object>> rows = jdbcTemplate.queryForList(
+                "SELECT POLIZA, INICIO, FIN, NUM_ORDEN, TIP_CONTRATO, RIESGO, RAMO_CODIGO, PRODUCTO_CODIGO, " +
+                "NUMERO_DOCUMENTO, TIPO_DOCUMENTO, COD_CAMPO, RIESGO2, VALOR_RIESGO_ORI, PRODUCTO, ESTADO, " +
+                "VALOR_RIESGO, DIRECCION, TELEFONO, NOMBRES_APELLIDOS, PREFERENCIAL " +
+                "FROM NASIST.T_RIESGOS_CEDULA ORDER BY INICIO DESC, ESTADO DESC");
+        return rows;
     }
 }

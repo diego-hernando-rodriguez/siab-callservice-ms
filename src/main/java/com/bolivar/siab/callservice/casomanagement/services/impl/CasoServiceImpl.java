@@ -46,30 +46,40 @@ public class CasoServiceImpl implements CasoService {
         // PRE-INSERT validation: mandatory fields
         validateMandatoryFields(request);
 
-        // F_VALIDA_FUNCIONARIO: prevent Bolivar employee self-cases
-        String esFuncionario = storedProcedureRepository.validaFuncionario(
-                request.getUsuNumeroDocumento(), request.getUsuTipoDocumento());
-        if ("S".equals(esFuncionario)) {
-            throw new BusinessException("FUNCIONARIO_BOLIVAR",
-                    "No se permite crear casos para funcionarios de Bolívar");
-        }
-
         // Generate NUMERO_LLAMADA and NUMERO_SINI via F_CONSECUTIVO_SIAB
         Long numeroLlamada = storedProcedureRepository.getConsecutivoSiab("NUMERO_LLAMADA");
-        String numeroSini = String.valueOf(storedProcedureRepository.getConsecutivoSiab("NUMERO_SINI"));
+        Long numeroSini = storedProcedureRepository.getConsecutivoSiab("NUMERO_SINI");
 
         // Build entity
         LlamadaEntity entity = casoMapper.toEntity(request);
         entity.setNumero(numeroLlamada);
         entity.setNumeroSiniestro(numeroSini);
         entity.setFechaLlamada(LocalDateTime.now());
-        entity.setHoraLlamada(String.format("%02d:%02d",
-                LocalDateTime.now().getHour(), LocalDateTime.now().getMinute()));
-        entity.setEstadoLlamada("AB"); // Open
+        entity.setFechaHoraLlamada(LocalDateTime.now());
+        // HORA_LLAMADA is NUMBER (minutes since midnight) in Oracle
+        entity.setHoraLlamada(LocalDateTime.now().getHour() * 60 + LocalDateTime.now().getMinute());
+        entity.setEstadoLlamada("A"); // Abierto
+        entity.setOperador("ANGULAR");
+        entity.setPlacaRiesgo(request.getRiesgoCodigo());
+
+        // OBSERVACIONES_LAR: if null, set "INICIO DE CASO" (from PRE-INSERT)
+        if (entity.getObservacionesLar() == null || entity.getObservacionesLar().isEmpty()) {
+            entity.setObservacionesLar("INICIO DE CASO");
+        }
 
         // Save to LLAMADAS
         LlamadaEntity saved = llamadaRepository.save(entity);
         log.info("Case created with numero: {}, sini: {}", saved.getNumero(), saved.getNumeroSiniestro());
+
+        // POST-INSERT: Insert observations via PKG_INSERTAR
+        if (request.getObservacionesLar() != null && !request.getObservacionesLar().isEmpty()) {
+            String obsFormatted = "&" + "ANGULAR" + "|" + java.time.format.DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm").format(LocalDateTime.now()) + "|" + request.getObservacionesLar().trim();
+            try {
+                String error = storedProcedureRepository.insertarObservacionesCaso(
+                        saved.getNumero(), saved.getNumeroSiniestro(), obsFormatted);
+                if (error != null) { log.warn("Error inserting observations: {}", error); }
+            } catch (Exception e) { log.warn("PKG_INSERTAR error: {}", e.getMessage()); }
+        }
 
         return enrichResponse(saved);
     }
@@ -101,10 +111,6 @@ public class CasoServiceImpl implements CasoService {
             return llamadaRepository.findByContNumeroContratoContainingIgnoreCase(
                     criteria.getContNumero(), pageable).map(this::enrichResponse);
         }
-        if (criteria.getUsuNumeroDocumento() != null) {
-            return llamadaRepository.findByUsuarioDocumento(
-                    criteria.getUsuNumeroDocumento(), pageable).map(this::enrichResponse);
-        }
         return llamadaRepository.findAll(pageable).map(this::enrichResponse);
     }
 
@@ -124,8 +130,8 @@ public class CasoServiceImpl implements CasoService {
         // Log the change
         LogCambioCausaEntity logCambio = LogCambioCausaEntity.builder()
                 .numeroLlamada(numero)
-                .ramoAnterior(original.getRamoCodigo())
-                .productoAnterior(original.getProductoCodigo())
+                .ramoAnterior(original.getRamoCodigo() != null ? Integer.parseInt(original.getRamoCodigo()) : null)
+                .productoAnterior(original.getProductoCodigo() != null ? Integer.parseInt(original.getProductoCodigo()) : null)
                 .causaAnterior(original.getCausaCodigo())
                 .ramoNuevo(request.getRamoNuevo())
                 .productoNuevo(request.getProductoNuevo())
@@ -154,10 +160,10 @@ public class CasoServiceImpl implements CasoService {
         }
 
         // Update reclassification fields on original
-        original.setReclasificaRamoCodigo(request.getRamoNuevo());
-        original.setReclasificaProductoCodigo(request.getProductoNuevo());
+        original.setReclasificaRamoCodigo(String.valueOf(request.getRamoNuevo()));
+        original.setReclasificaProductoCodigo(String.valueOf(request.getProductoNuevo()));
         original.setReclasificaCausaCodigo(request.getCausaNueva());
-        original.setCodRazonReclasifica(request.getCodRazon());
+        original.setCodRazonReclasifica(request.getCodRazon() != null ? Long.valueOf(request.getCodRazon()) : null);
         llamadaRepository.save(original);
 
         return ReclasificacionResponseDTO.builder()
@@ -189,9 +195,6 @@ public class CasoServiceImpl implements CasoService {
         if (request.getDireccion() == null || request.getDireccion().isBlank()) {
             throw new BusinessException("CAMPO_REQUERIDO", "Dirección (DIRECCION) es requerida");
         }
-        if (request.getUsuNumeroDocumento() == null || request.getUsuNumeroDocumento().isBlank()) {
-            throw new BusinessException("CAMPO_REQUERIDO", "Documento del usuario (USU_NUMERO_DOCUMENTO) es requerido");
-        }
     }
 
     /**
@@ -202,13 +205,19 @@ public class CasoServiceImpl implements CasoService {
 
         try {
             if (entity.getRamoCodigo() != null) {
-                response.setDspRamo(storedProcedureRepository.getDescriptorRamo(entity.getRamoCodigo()));
+                response.setDspRamo(storedProcedureRepository.getDescriptorRamo(Integer.parseInt(entity.getRamoCodigo())));
             }
             if (entity.getProductoCodigo() != null) {
-                response.setDspProducto(storedProcedureRepository.getDescriptorProducto(entity.getProductoCodigo()));
+                response.setDspProducto(storedProcedureRepository.getDescriptorProducto(Integer.parseInt(entity.getProductoCodigo())));
             }
-            if (entity.getCausaCodigo() != null) {
+            if (entity.getEstadoLlamada() != null) {
                 response.setDspEstadoLlamada(entity.getEstadoLlamada());
+            }
+            // Format hora
+            if (entity.getHoraLlamada() != null) {
+                int h = entity.getHoraLlamada() / 60;
+                int m = entity.getHoraLlamada() % 60;
+                response.setHoraLlamadaFormatted(String.format("%02d:%02d", h, m));
             }
             // Exception count
             long exceptionCount = llamadaExcepcionRepository.countByNumeroLlamada(entity.getNumero());

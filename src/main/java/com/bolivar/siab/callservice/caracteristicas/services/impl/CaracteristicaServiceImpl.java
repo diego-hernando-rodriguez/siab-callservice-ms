@@ -68,7 +68,7 @@ public class CaracteristicaServiceImpl implements CaracteristicaService {
 
         // Find prior case for copying
         List<LlamadaEntity> priorCases = llamadaRepository.findPreviousCaseByContractAndRamo(
-                contNumero, riesgoCodigo, ramo, producto, llamadaNumero != null ? llamadaNumero : 0L);
+                contNumero, riesgoCodigo, String.valueOf(ramo), String.valueOf(producto), llamadaNumero != null ? llamadaNumero : 0L);
         Long priorCaseNumero = !priorCases.isEmpty() ? priorCases.get(0).getNumero() : null;
         Map<Integer, String> priorValues = new HashMap<>();
         if (priorCaseNumero != null) {

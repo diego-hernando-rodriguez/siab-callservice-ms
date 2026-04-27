@@ -55,4 +55,19 @@ public interface RiesgoAseguradoRepository extends JpaRepository<RiesgoAsegurado
         "                AND t1.codigo_campo = td.codigo_campo) " +
         "ORDER BY td.codigo_campo")
     List<Object[]> findAllCamposBusqueda();
+
+    /**
+     * CGFK$CHK_LLAMADA_LLAMADA_PR2: Get user data for a contract.
+     * Joins PERSONAS_CONTRATO with USUARIOS to get document, name, preferencial.
+     */
+    @Query(nativeQuery = true, value =
+        "SELECT PECO.USU_TIPO_DOCUMENTO, PECO.USU_NUMERO_DOCUMENTO, " +
+        "substr(USU.NOMBRES_APELLIDOS,1,40) as nombre_usuario, USU.PREFERENCIAL, " +
+        "substr(USU.NOMBRES_APELLIDOS,1,40) as nombre_tomador " +
+        "FROM PERSONAS_CONTRATO PECO, USUARIOS USU " +
+        "WHERE PECO.CONT_NUMERO_CONTRATO = :contrato " +
+        "AND PECO.USU_TIPO_DOCUMENTO = USU.TIPO_DOCUMENTO " +
+        "AND PECO.USU_NUMERO_DOCUMENTO = USU.NUMERO_DOCUMENTO " +
+        "AND ROWNUM <= 1")
+    List<Object[]> findDatosUsuarioContrato(@Param("contrato") String contrato);
 }

@@ -207,7 +207,72 @@ public class StoredProcedureRepository {
         jdbcCall.execute(llamadaNumero);
     }
 
+    // ========== PKG_INSERTAR ==========
+
+    public String insertarObservacionesCaso(Long llamadaNumero, Long numeroSiniestro, String observaciones) {
+        SimpleJdbcCall jdbcCall = new SimpleJdbcCall(jdbcTemplate)
+                .withSchemaName("NASIST")
+                .withCatalogName("PKG_INSERTAR")
+                .withProcedureName("PR_INSERTAR_OBSERVACIONES_CASO")
+                .declareParameters(
+                        new SqlParameter("P_LLAMADA_NUMERO", Types.NUMERIC),
+                        new SqlParameter("P_NUMERO_SINIESTRO", Types.NUMERIC),
+                        new SqlParameter("P_OBSERVACIONES", Types.LONGVARCHAR),
+                        new SqlOutParameter("P_ERROR", Types.VARCHAR));
+        Map<String, Object> result = jdbcCall.execute(llamadaNumero, numeroSiniestro, observaciones);
+        return (String) result.get("P_ERROR");
+    }
+
+    // ========== P_PRODUCTOS_CONSULTA (standalone procedure) ==========
+
+    /**
+     * Calls P_PRODUCTOS_CONSULTA which populates T_PRODUCTOS_CONSULTA temp table.
+     * Then reads the results from that table.
+     */
+    public void ejecutarProductosConsulta(String ramoCodigo, String productoCodigo, Long pais, String riesgoValor, Integer codigoCampo) {
+        SimpleJdbcCall jdbcCall = new SimpleJdbcCall(jdbcTemplate)
+                .withSchemaName("NASIST")
+                .withProcedureName("P_PRODUCTOS_CONSULTA")
+                .declareParameters(
+                        new SqlParameter("P_LLAMADA_RAMO_CODIGO", Types.VARCHAR),
+                        new SqlParameter("P_LLAMADA_PRODUCTO_CODIGO", Types.VARCHAR),
+                        new SqlParameter("P_LLAMADA_PAIS", Types.NUMERIC),
+                        new SqlParameter("P_RIESGO_VALOR", Types.VARCHAR),
+                        new SqlParameter("P_RIESGO_CODIGO_CAMPO", Types.NUMERIC));
+        jdbcCall.execute(ramoCodigo, productoCodigo, pais, riesgoValor, codigoCampo);
+    }
+
+    /**
+     * Calls P_RIESGOS_CEDULA which populates T_RIESGOS_CEDULA temp table.
+     */
+    public void ejecutarRiesgosCedula(String ramoCodigo, String productoCodigo,
+                                       String ramoCodigo2, String productoCodigo2,
+                                       String existente, String riesgoValor, Long pais) {
+        SimpleJdbcCall jdbcCall = new SimpleJdbcCall(jdbcTemplate)
+                .withSchemaName("NASIST")
+                .withProcedureName("P_RIESGOS_CEDULA")
+                .declareParameters(
+                        new SqlParameter("P_RAMO_CODIGO", Types.VARCHAR),
+                        new SqlParameter("P_PRODUCTO_CODIGO", Types.VARCHAR),
+                        new SqlParameter("P_RAMO_CODIGO_2", Types.VARCHAR),
+                        new SqlParameter("P_PRODUCTO_CODIGO_2", Types.VARCHAR),
+                        new SqlParameter("P_LLAMADA_EXISTENTE", Types.VARCHAR),
+                        new SqlParameter("P_RIESGO_VALOR", Types.VARCHAR),
+                        new SqlParameter("P_PAIS", Types.NUMERIC));
+        jdbcCall.execute(ramoCodigo, productoCodigo, ramoCodigo2, productoCodigo2, existente, riesgoValor, pais);
+    }
+
     // ========== PKG_GEO_DIRECCION_INTEGRA ==========
+
+    public String getDireccionLimpia(String direccion) {
+        return callStringFunctionWithParam("PKG_GEO_DIRECCION_INTEGRA", "FU_DIRECCION_LIMPIA",
+                "P_DIRECCION", direccion, Types.VARCHAR);
+    }
+
+    public String getDireccionUnica(Integer indice) {
+        return callStringFunctionWithParam("PKG_GEO_DIRECCION_INTEGRA", "FU_DIRECCION_UNICA",
+                "P_INDICE", indice, Types.NUMERIC);
+    }
 
     public String getRegistrosCoordenadas(Long locgeCodigo, String direccion) {
         SimpleJdbcCall jdbcCall = new SimpleJdbcCall(jdbcTemplate)

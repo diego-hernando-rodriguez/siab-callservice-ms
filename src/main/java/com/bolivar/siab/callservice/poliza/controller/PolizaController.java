@@ -47,6 +47,24 @@ public class PolizaController {
         return ResponseEntity.ok(ApiResponse.ok(polizaService.searchRisks(valor)));
     }
 
+    @GetMapping("/riesgos/datos-contrato")
+    @Operation(summary = "Get user/tomador data for a contract (CGFK$CHK_LLAMADA_LLAMADA_PR2)")
+    public ResponseEntity<ApiResponse<java.util.Map<String, Object>>> getDatosContrato(
+            @RequestParam String contNumeroContrato) {
+        java.util.List<Object[]> rows = riesgoRepository.findDatosUsuarioContrato(contNumeroContrato);
+        if (rows.isEmpty()) {
+            return ResponseEntity.ok(ApiResponse.ok(java.util.Map.of()));
+        }
+        Object[] row = rows.get(0);
+        java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
+        result.put("usuTipoDocumento", row[0] != null ? row[0].toString() : null);
+        result.put("usuNumeroDocumento", row[1] != null ? row[1].toString().trim() : null);
+        result.put("nombreUsuario", row[2] != null ? row[2].toString() : null);
+        result.put("preferencial", row[3] != null ? row[3].toString() : null);
+        result.put("nombreTomador", row[4] != null ? row[4].toString() : null);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
     @GetMapping("/riesgos/campos-busqueda")
     @Operation(summary = "LOV: Risk search fields (RG_RIESGO / LOV_RIESGOS) - all searchable field types")
     public ResponseEntity<ApiResponse<java.util.List<java.util.Map<String, Object>>>> getCamposBusqueda(
@@ -68,10 +86,26 @@ public class PolizaController {
     }
 
     @GetMapping("/polizas/lov/productos")
-    @Operation(summary = "LOV: Products (RG_PRODUCTOS_AUTOS with ASIST* wildcard)")
-    public ResponseEntity<ApiResponse<java.util.List<com.bolivar.siab.callservice.configuracion.dto.DominioDTO>>> lovProductos(
-            @RequestParam(required = false) String query) {
-        return ResponseEntity.ok(ApiResponse.ok(java.util.List.of()));
+    @Operation(summary = "LOV: Products for risk value (P_PRODUCTOS_CONSULTA + T_PRODUCTOS_CONSULTA)")
+    public ResponseEntity<ApiResponse<java.util.List<java.util.Map<String, Object>>>> lovProductos(
+            @RequestParam(required = false) String ramo,
+            @RequestParam(required = false) String producto,
+            @RequestParam(required = false, defaultValue = "1") Long pais,
+            @RequestParam String valor,
+            @RequestParam Integer codigoCampo) {
+        return ResponseEntity.ok(ApiResponse.ok(polizaService.getProductosConsulta(ramo, producto, pais, valor, codigoCampo)));
+    }
+
+    @GetMapping("/riesgos/lov/contratos")
+    @Operation(summary = "LOV: Contracts/risks for a product (P_RIESGOS_CEDULA + T_RIESGOS_CEDULA)")
+    public ResponseEntity<ApiResponse<java.util.List<java.util.Map<String, Object>>>> lovContratos(
+            @RequestParam(required = false) String ramo,
+            @RequestParam(required = false) String producto,
+            @RequestParam String ramo2,
+            @RequestParam String producto2,
+            @RequestParam String valor,
+            @RequestParam(required = false, defaultValue = "1") Long pais) {
+        return ResponseEntity.ok(ApiResponse.ok(polizaService.getRiesgosCedula(ramo, producto, ramo2, producto2, valor, pais)));
     }
 
     @GetMapping("/polizas/lov/productos-bolivar")

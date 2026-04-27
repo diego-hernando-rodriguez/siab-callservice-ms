@@ -11,17 +11,11 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * Repository for LLAMADAS table with custom queries for case management.
- */
 @Repository
 public interface LlamadaRepository extends JpaRepository<LlamadaEntity, Long> {
 
     List<LlamadaEntity> findByContNumeroContratoAndRiesgoCodigo(String contNumero, String riesgoCodigo);
 
-    /**
-     * SQL-02: Find previous case by contract, riesgo, ramo, producto for characteristic copying.
-     */
     @Query("SELECT l FROM LlamadaEntity l WHERE l.contNumeroContrato = :contNumero " +
            "AND l.riesgoCodigo = :riesgoCodigo AND l.ramoCodigo = :ramoCodigo " +
            "AND l.productoCodigo = :productoCodigo AND l.numero <> :excludeNumero " +
@@ -29,13 +23,10 @@ public interface LlamadaRepository extends JpaRepository<LlamadaEntity, Long> {
     List<LlamadaEntity> findPreviousCaseByContractAndRamo(
             @Param("contNumero") String contNumero,
             @Param("riesgoCodigo") String riesgoCodigo,
-            @Param("ramoCodigo") Integer ramoCodigo,
-            @Param("productoCodigo") Integer productoCodigo,
+            @Param("ramoCodigo") String ramoCodigo,
+            @Param("productoCodigo") String productoCodigo,
             @Param("excludeNumero") Long excludeNumero);
 
-    /**
-     * VALIDA_CASO_ATENDIDO: Find duplicate cases by city, contract, and risk.
-     */
     @Query("SELECT l FROM LlamadaEntity l WHERE l.locgeCodigo = :locgeCodigo " +
            "AND l.contNumeroContrato = :contNumero AND l.riesgoCodigo = :riesgoCodigo " +
            "AND l.estadoLlamada NOT IN ('AN', 'CE') ORDER BY l.fechaLlamada DESC")
@@ -46,8 +37,5 @@ public interface LlamadaRepository extends JpaRepository<LlamadaEntity, Long> {
 
     Page<LlamadaEntity> findByContNumeroContratoContainingIgnoreCase(String contNumero, Pageable pageable);
 
-    @Query("SELECT l FROM LlamadaEntity l WHERE l.usuNumeroDocumento = :documento ORDER BY l.fechaLlamada DESC")
-    Page<LlamadaEntity> findByUsuarioDocumento(@Param("documento") String documento, Pageable pageable);
-
-    Optional<LlamadaEntity> findByNumeroSiniestro(String numeroSiniestro);
+    Optional<LlamadaEntity> findByNumeroSiniestro(Long numeroSiniestro);
 }

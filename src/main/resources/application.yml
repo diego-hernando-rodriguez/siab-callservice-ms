@@ -8,8 +8,8 @@ spring:
     name: siab-callservice-ms
   datasource:
     url: jdbc:oracle:thin:@${DB_HOST:10.1.20.98}:${DB_PORT:1521}/${DB_SERVICE:ASTB}
-    username: ${DB_USERNAME:TEDB80210083}
-    password: ${DB_PASSWORD:Colombia123*}
+    username: ${DB_USERNAME:nasist}
+    password: ${DB_PASSWORD:nasistadmin}
     driver-class-name: oracle.jdbc.OracleDriver
     hikari:
       minimum-idle: 5
@@ -49,7 +49,7 @@ external-services:
     enabled: ${SALESFORCE_ENABLED:false}
     base-url: ${SALESFORCE_URL:http://localhost:9091/salesforce}
   google-maps:
-    api-key: ${GOOGLE_MAPS_API_KEY:}
+    api-key: ${GOOGLE_MAPS_API_KEY:AIzaSyD_TCH9SGvofikqcNuDcsaO4jexSh-Qj4k}
     geocoding-url: ${GOOGLE_GEOCODING_URL:https://maps.googleapis.com/maps/api/geocode/json}
   notifications:
     email-enabled: ${EMAIL_ENABLED:false}
